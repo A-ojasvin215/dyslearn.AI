@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // Fix for "431 Request Header Fields Too Large" error
+        hmr: {
+          clientPort: 3000,
+        },
+        // Increase header size limit to handle large cookies/localStorage
+        maxHeaderSize: 16384, // 16KB (default is 8KB)
         watch: {
           ignored: ['**/data/db.json', '**/data/**/*.json'],
         },

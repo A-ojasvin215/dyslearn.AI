@@ -12,7 +12,7 @@
 ### ✅ **Solutions Implemented:**
 
 ## 1. **Priority API Key Configuration**
-- **Priority Key**: `AIzaSyA5g8j0Oe5NKR-qo-hlSyoPTypAKpg1XZk` now used first
+- **Priority Key**: First key in `API_KEY` or `GEMINI_API_KEY` is used first
 - **Automatic Prioritization**: Key is moved to first position in tier 1
 - **Performance Logging**: Console shows which key is being used for best performance
 

@@ -15,7 +15,7 @@ Based on the console errors and user feedback, I have implemented a comprehensiv
 
 ### **Solutions Implemented:**
 - ✅ **Ultra-fast 2-second timeout** (down from 10+ seconds)
-- ✅ **Priority API key first**: `AIzaSyA5g8j0Oe5NKR-qo-hlSyoPTypAKpg1XZk` used first
+- ✅ **Priority API key first**: First key from `.env` used for best performance
 - ✅ **Removed deprecated models**: No more 404 errors from `gemini-2.0-flash-lite`, `gemini-2.0-flash`
 - ✅ **OpenRouter transcription fallback**: Immediate fallback when Gemini fails
 - ✅ **Optimized parameters**: 128 tokens, topK=10, temperature=0.0 for speed

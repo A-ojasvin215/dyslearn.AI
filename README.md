@@ -1,211 +1,204 @@
-# DysLearn AI - Learning Platform 🎮✨
+# DysLearn AI - Dyslexia-Friendly Learning Platform
 
-A modern, pixel-art themed AI-powered learning platform designed for students with dyslexia and learning differences.
+An AI-powered educational platform designed specifically for students with dyslexia, featuring multi-modal learning, voice input, visual aids, and adaptive content delivery.
 
-![DysLearn AI](https://img.shields.io/badge/DysLearn-AI%20Learning%20Platform-purple?style=for-the-badge&logo=react)
-![Theme](https://img.shields.io/badge/Theme-Pixel%20Gaming-cyan?style=for-the-badge)
-![Accessibility](https://img.shields.io/badge/Accessibility-Dyslexia%20Friendly-green?style=for-the-badge)
+## 🎯 Project Overview
 
-## 🎮 Features
+DysLearn AI is a comprehensive learning assistant that helps students with dyslexia through:
+- **Voice-to-Text Input** — Offline speech recognition + Gemini AI transcription
+- **Visual Learning Aids** — AI-generated images and diagrams
+- **Dyslexia-Friendly UI** — 13 custom themes with optimized typography
+- **Multi-Language Support** — Hindi, Bengali, Tamil, Spanish, French, German, Italian, English
+- **Offline Knowledge Base** — Indian curriculum content (Classes 1-12)
+- **Interactive Games** — Tetris, Flappy Bird, Dino Game for engagement
+- **Drawing & Camera Input** — Multi-modal learning support
 
-### **Pixel Gaming Theme**
-- **Retro aesthetic** with purple gradients and neon accents
-- **Animated intro page** with pixel characters and floating platforms
-- **Glowing UI elements** with cyan, magenta, and yellow neon colors
-- **Special bold text styling** in chat with animated glow effects
-- **Pixel art background** with twinkling stars and scrolling buildings
+## 🚀 Quick Start
 
-### **AI-Powered Learning**
-- Interactive chat-based learning
-- Image generation for visual explanations
-- Multiple language support
-- Offline challenges and games
-- Progress tracking and achievements
+### Prerequisites
+- Node.js 18+ and npm
+- A Gemini API key (free at https://aistudio.google.com/app/apikey)
 
-### **Accessibility Features**
-- **Dyslexia-friendly design** with customizable fonts and spacing
-- **Reading ruler** for better text tracking
-- **Text-to-speech** with language-aware voice selection
-- **Hover speech** for UI elements
-- **High contrast themes** and visual indicators
+### Installation
 
-### **Gamification**
-- **Points system** with daily goals
-- **Achievement badges** with celebration effects
-- **Progress tracking** with visual charts
-- **Mini-games** (Tetris, Flappy Bird, Dino Game)
-- **Challenge system** with offline support
-
-## 🎨 Themes
-
-### **Available Themes:**
-- **Pixel** (Default) - Gaming aesthetic with neon glows
-- Light, Dark, Sepia
-- Ocean, Forest, Sunset
-- Lavender, Midnight, Cream
-
-### **Background Styles:**
-- **Pixel Art** (Default) - Animated stars and buildings
-- Grid, Dots, Gradient
-- Cosmic, Playful
-
-## 🚀 Getting Started
-
-### **Prerequisites**
-- Node.js 18+ 
-- npm or yarn
-- Modern web browser
-
-### **Installation**
+1. **Clone the repository**
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/dyslearn-ai.git
-
-# Navigate to project directory
+git clone <your-repo-url>
 cd dyslearn-ai
+```
 
-# Install dependencies
+2. **Install dependencies**
+```bash
 npm install
+```
 
-# Start development server
+3. **Configure API Keys**
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env and add your API keys
+# Get free Gemini API key: https://aistudio.google.com/app/apikey
+```
+
+4. **Run the development server**
+```bash
 npm run dev
 ```
 
-### **Environment Setup**
-Create a `.env` file with your API keys:
-```env
-VITE_GEMINI_API_KEY=your_gemini_api_key
-VITE_OPENROUTER_API_KEY=your_openrouter_api_key
+5. **Open in browser**
+```
+http://localhost:3000
 ```
 
-## 🎯 Usage
+## 🔑 API Keys Setup
 
-### **First Time Experience**
-1. **Intro Page** - Pixel art welcome screen with animated elements
-2. **Press ENTER** - Cool transition effect to main app
-3. **Main App** - Pixel theme with consistent gaming aesthetic
+This project requires API keys for AI features. All keys are **free** to obtain:
 
-### **Chat Features**
-- Type questions or requests
-- **Bold text** appears with neon glow effects
-- Image generation for visual explanations
-- Voice input and text-to-speech
+### Required:
+- **Gemini API Key** — Get from https://aistudio.google.com/app/apikey
+  - Add to `.env` as `API_KEY=your_key_here`
 
-### **Customization**
-- Access Settings (⚙️) to customize:
-  - Theme selection
-  - Background style
-  - Dyslexia settings
-  - Language preferences
-  - Voice options
+### Optional (for fallback):
+- **OpenRouter API Key** — Get from https://openrouter.ai/keys (free tier available)
+- **Databricks Token** — Only needed if using database features
 
-## 🎮 Special Features
-
-### **Pixel Theme Bold Text**
-Bold text in chat messages features:
-- **Animated glow effects** with pulsing
-- **Color-coded by context**:
-  - Assistant messages: Magenta glow
-  - User messages: Cyan glow
-  - General bold: Yellow glow
-- **Hover effects** with scaling and brightness
-- **Monospace font** for retro gaming feel
-
-### **Intro Page**
-- **Floating pixel characters** with bounce animations
-- **Animated platforms** moving up and down
-- **Scrolling background** with buildings and clouds
-- **Twinkling stars** with opacity animations
-- **Neon UI elements** with glow effects
-- **Cool transition** with pixel wipe effect
-
-## 🛠️ Technology Stack
-
-- **Frontend**: React 18, TypeScript, Tailwind CSS
-- **AI Integration**: Google Gemini API, OpenRouter
-- **Animations**: CSS animations, Canvas Confetti
-- **Accessibility**: Web Speech API, Custom dyslexia features
-- **State Management**: React hooks, localStorage
-- **Build Tool**: Vite
+See `.env.example` for the complete configuration template.
 
 ## 📁 Project Structure
 
 ```
 dyslearn-ai/
-├── components/           # React components
-│   ├── IntroPage.tsx    # Pixel art intro page
-│   ├── ChatFeed.tsx     # Main chat interface
-│   ├── SettingsModal.tsx # Theme and settings
+├── components/          # React UI components
+│   ├── ChatInput.tsx   # Voice + text input with STT
+│   ├── MessageBubble.tsx
+│   ├── SettingsModal.tsx
 │   └── ...
-├── styles/              # CSS and themes
-│   ├── IntroPage.css    # Intro page styling
-│   ├── themes.css       # Pixel theme system
-│   └── ...
-├── data/                # Educational content
-├── services/            # API integrations
-└── types.ts            # TypeScript definitions
+├── services/           # API integrations
+│   ├── geminiService.ts    # Gemini AI with key rotation
+│   └── offlineChallengeEngine.ts
+├── data/              # Educational content
+│   ├── indianCurriculum_*.ts
+│   ├── encyclopedia/
+│   └── offlineKnowledge.ts
+├── api/               # Backend API routes
+├── .env.example       # Environment variables template
+└── vite.config.ts     # Build configuration
 ```
 
-## 🎨 Customization
+## 🎨 Features
 
-### **Adding New Themes**
-1. Add theme name to `types.ts`
-2. Create CSS variables in `styles/themes.css`
-3. Add to theme options in `SettingsModal.tsx`
+### 1. **AI-Powered Chat Assistant**
+- Multi-turn conversations with context awareness
+- Automatic fallback between Gemini and OpenRouter
+- Tiered API key rotation for reliability
 
-### **Modifying Pixel Theme**
-Edit `styles/themes.css`:
-```css
-.pixel {
-  --accent-primary: #00ffff;    /* Cyan */
-  --accent-secondary: #ff00ff;  /* Magenta */
-  --accent-tertiary: #ffff00;   /* Yellow */
-}
+### 2. **Voice Input (STT)**
+- **Offline Mode**: Web Speech API for real-time transcription (Chrome/Edge)
+- **Online Mode**: Gemini AI transcription for all browsers
+- Automatic fallback between modes
+
+### 3. **Visual Learning**
+- AI-generated images via Gemini Imagen
+- Drawing canvas for handwriting practice
+- Camera input for real-world object recognition
+
+### 4. **Dyslexia-Friendly Design**
+- 13 custom themes (Ocean, Forest, Sunset, Pixel, etc.)
+- OpenDyslexic font option
+- Bold text for improved readability
+- High contrast modes
+
+### 5. **Offline Knowledge Base**
+- Complete Indian curriculum (NCERT Classes 1-12)
+- Encyclopedia entries for common topics
+- Works without internet after initial load
+
+### 6. **Multi-Language Support**
+- 8 languages supported
+- Language-specific voice recognition
+- Localized UI elements
+
+## 🛠️ Technology Stack
+
+- **Frontend**: React 18, TypeScript, Tailwind CSS
+- **AI/ML**: Google Gemini API, OpenRouter (fallback)
+- **Build Tool**: Vite 6
+- **Speech**: Web Speech API + Gemini STT
+- **State Management**: React Hooks + localStorage
+- **Styling**: Tailwind CSS 4 with custom themes
+
+## 📊 Performance Optimizations
+
+- **Request Caching** — 5-minute cache for repeated queries
+- **Parallel API Requests** — Multiple keys used simultaneously
+- **Model Fallbacks** — Automatic switching between Gemini models
+- **Code Splitting** — Lazy loading for faster initial load
+- **Tiered Key System** — Primary keys used first, secondary as fallback
+
+## 🧪 Testing
+
+Run TypeScript type checking:
+```bash
+npm run lint
 ```
 
-## 🌟 Contributing
+Build for production:
+```bash
+npm run build
+```
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Preview production build:
+```bash
+npm run preview
+```
 
-## 📝 License
+## 📝 Configuration
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### API Key Tiers
+- **Tier 1**: `API_KEY`, `GEMINI_API_KEY`, `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`
+- **Tier 2**: `GEMINI_API_KEY_3` through `GEMINI_API_KEY_10`
 
-## 🎯 Roadmap
+Tier 1 keys are used first for best performance. Tier 2 keys activate when Tier 1 is exhausted.
 
-- [ ] More pixel art animations
-- [ ] Additional mini-games
-- [ ] Voice chat integration
-- [ ] Mobile app version
-- [ ] Multiplayer learning sessions
-- [ ] Advanced AI tutoring
+### Vite Configuration
+- Port: 3000
+- Max header size: 16KB (fixes large localStorage issues)
+- HMR enabled for fast development
 
-## 🤝 Support
+## 🐛 Troubleshooting
 
-- **Issues**: Report bugs or request features
-- **Discussions**: Share ideas and get help
-- **Documentation**: Check the `/docs` folder for detailed guides
+### "431 Request Header Fields Too Large"
+- Clear browser localStorage: F12 → Application → Clear storage
+- Restart dev server
 
-## 🎮 Screenshots
+### Voice input not working
+- Ensure HTTPS or localhost (required for microphone access)
+- Grant microphone permissions in browser
+- Chrome/Edge recommended for best STT support
 
-### Intro Page
-![Intro Page](screenshots/intro-page.png)
-*Pixel art intro with animated characters and platforms*
+### API quota exceeded
+- Add more API keys to `.env` (Tier 2 keys)
+- Keys automatically rotate when quota is hit
 
-### Main Chat Interface
-![Chat Interface](screenshots/chat-interface.png)
-*Pixel theme with glowing bold text and neon UI elements*
+## 📄 License
 
-### Settings Panel
-![Settings](screenshots/settings.png)
-*Theme selection with pixel gaming aesthetic*
+This project is for educational purposes as part of a college submission.
+
+## 👥 Team
+
+[Add your team member names and DSU email IDs here]
+
+## 🔗 Links
+
+- **GitHub Repository**: [Your repo URL]
+- **Live Demo**: [If deployed, add URL here]
+- **Documentation**: See `/docs` folder for detailed reports
+
+## 📧 Contact
+
+For questions or issues, contact: [Your DSU email]
 
 ---
 
-**Made with ❤️ for learners with dyslexia and learning differences**
-
-*Combining modern AI technology with retro gaming aesthetics to create an engaging, accessible learning experience.*
+**Note for Evaluators**: This project requires API keys to run. Please follow the setup instructions above to obtain free API keys. The `.env.example` file shows exactly what keys are needed.
