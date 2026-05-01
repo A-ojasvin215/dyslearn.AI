@@ -26,3 +26,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Files containing real API keys — never commit these
+TIERED_API_KEY_SYSTEM.md
+API_KEY_STATUS.md

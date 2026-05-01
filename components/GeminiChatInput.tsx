@@ -544,11 +544,14 @@ export const GeminiChatInput: React.FC<ChatInputProps> = ({
         <div className="relative flex flex-col sm:flex-row items-stretch sm:items-end bg-[var(--bg-input)] p-1 rounded-2xl shadow-lg border border-[var(--border-color)]">
           <div className="flex items-center flex-wrap sm:flex-nowrap">
             <input 
+              id="gemini-file-upload"
+              name="file-upload"
               type="file" 
               ref={fileInputRef} 
               onChange={handleFileChange} 
               className="hidden" 
               accept="image/png, image/jpeg, application/pdf, text/plain"
+              aria-label="Upload file"
             />
             <button onClick={() => fileInputRef.current?.click()} disabled={isLoading || isProcessingFile} className="p-2 sm:p-2.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50" title="Upload File">
               <FileIcon />
@@ -582,6 +585,8 @@ export const GeminiChatInput: React.FC<ChatInputProps> = ({
           </div>
           <div className="relative flex-grow flex items-end">
             <textarea
+              id="gemini-chat-input"
+              name="chat-message"
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -590,6 +595,7 @@ export const GeminiChatInput: React.FC<ChatInputProps> = ({
               className="flex-grow bg-transparent pl-2 pr-12 py-2.5 text-base text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] resize-none border-none outline-none max-h-52 overflow-y-auto"
               rows={1}
               disabled={isLoading || isProcessingFile || isTranscribing}
+              aria-label="Chat message input"
             />
               {enableImageGeneration && (
                 <div className="absolute left-2 -top-8 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md px-2 py-1 text-[10px] text-[var(--text-secondary)] shadow-sm animate-fade-in-fast whitespace-nowrap">

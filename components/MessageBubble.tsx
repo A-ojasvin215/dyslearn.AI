@@ -142,7 +142,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = (props) => {
                         alt="Visual Aid" 
                         className="rounded-xl shadow-lg border border-[var(--border-color)] hover:scale-[1.02] transition-transform duration-300 w-full" 
                         referrerPolicy="no-referrer"
-                        crossOrigin="anonymous"
                         onError={(e) => {
                             const img = e.currentTarget;
                             // If already tried fallback, hide the image
@@ -171,16 +170,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = (props) => {
                                 wordSpacing: `${dyslexiaSettings.wordSpacing}em`,
                                 color: isUser ? 'var(--user-bubble-text)' : 'inherit'
                             }}
-                            dangerouslySetInnerHTML={createMarkup(content.replace(/\[SOURCES::.*?\]/g, '').trim())} 
+                            dangerouslySetInnerHTML={createMarkup(content.replace(/\[SOURCES::[^\]]*\]/g, '').trim())} 
                         />
                         
                         {!isUser && (() => {
-                            const sourcesMatch = content.match(/\[SOURCES::(.*?)\]/);
+                            const sourcesMatch = content.match(/\[SOURCES::([^\]]*)\]/);
                             if (!sourcesMatch) return null;
-                            const sourcesStr = sourcesMatch[1];
+                            const sourcesStr = sourcesMatch[1].trim();
                             const sources = sourcesStr.split('||').map(s => {
                                 const parts = s.split('::');
-                                return { name: parts[0] || '', url: parts[1] || '#', icon: parts[2] || '🔗' };
+                                return { name: parts[0]?.trim() || '', url: parts[1]?.trim() || '#', icon: parts[2]?.trim() || '🔗' };
                             }).filter(s => s.url && s.url !== '#' && s.name);
 
                             // Map source names to favicon images
@@ -212,7 +211,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = (props) => {
                                                 <span>{source.icon}</span>
                                             )}
                                             <span className="opacity-80">{source.name}</span>
-                                            <span className="ml-1 opacity-40 text-[10px]">+1</span>
+                                            <span className="ml-1 opacity-40 text-[10px]">↗</span>
                                         </a>
                                     ))}
                                 </div>

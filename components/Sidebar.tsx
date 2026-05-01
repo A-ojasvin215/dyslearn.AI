@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { ChatMetadata, Challenge, UserData, ImageProvider } from '../types';
 import { NewChatIcon, CloseIcon, MessageIcon, TrashIcon, TrophyIcon, ChartBarIcon, LightBulbIcon, DinoIcon, BirdIcon, TetrisIcon, CHALLENGES } from '../constants';
 import { ProgressView } from './ProgressView';
@@ -9,7 +9,7 @@ const DinoGame = React.lazy(() => import('./DinoGame').then(m => ({ default: m.D
 const FlappyBird = React.lazy(() => import('./FlappyBird').then(m => ({ default: m.FlappyBird })));
 const Tetris = React.lazy(() => import('./Tetris').then(m => ({ default: m.Tetris })));
 
-const CHATS_PER_PAGE = 10;
+const CHATS_PER_PAGE = 15;
 
 interface SidebarProps {
   isOpen: boolean;
@@ -110,7 +110,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const handleLoadMore = () => {
         setVisibleChatsCount(prev => prev + CHATS_PER_PAGE);
     };
-    
+
+    // Group chats by date
+    const groupedChats = useMemo(() => {
+        const now = Date.now();
+        const DAY = 86400000;
+        const groups: { label: string; chats: ChatMetadata[] }[] = [
+            { label: 'Today', chats: [] },
+            { label: 'Yesterday', chats: [] },
+            { label: 'This Week', chats: [] },
+            { label: 'Older', chats: [] },
+        ];
+        visibleChats.forEach(chat => {
+            const age = now - (chat.createdAt || 0);
+            if (age < DAY) groups[0].chats.push(chat);
+            else if (age < 2 * DAY) groups[1].chats.push(chat);
+            else if (age < 7 * DAY) groups[2].chats.push(chat);
+            else groups[3].chats.push(chat);
+        });
+        return groups.filter(g => g.chats.length > 0);
+    }, [visibleChats]);
+
+    // Get icon for a chat (challenge icon or default message icon)
+    const getChatIcon = (chat: ChatMetadata) => {
+        if (chat.challengeId) {
+            const challenge = CHALLENGES.find(c => c.id === chat.challengeId);
+            if (challenge) return <challenge.icon className="h-4 w-4 flex-shrink-0 text-[var(--accent-color)]" />;
+        }
+        return <MessageIcon className="h-4 w-4 flex-shrink-0" />;
+    };    
     return (
     <>
         {/* Overlay for mobile */}
@@ -153,34 +181,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Content */}
             <nav className="flex-1 overflow-y-auto">
                 {view === 'history' ? (
-                    <div className="p-2 space-y-1">
-                        <ul className="space-y-1">
-                            {visibleChats.map((chat) => (
-                                <li key={chat.id} className="group relative">
-                                    <button
-                                        onClick={() => onSwitchChat(chat.id)}
-                                        aria-label={`Switch to chat: ${chat.title}`}
-                                        className={`flex items-center gap-2 p-2 rounded-lg text-sm transition-colors w-full text-left ${
-                                            activeChatId === chat.id 
-                                                ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] font-semibold shadow-sm' 
-                                                : 'hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]'
-                                        }`}
-                                    >
-                                        <MessageIcon className="h-4 w-4" />
-                                        <span className="flex-1 truncate pr-7">{chat.title}</span>
-                                    </button>
-                                    <button 
-                                        onClick={(e) => handleDeleteClick(e, chat.id)} 
-                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500 transition-opacity focus:opacity-100" 
-                                        aria-label={`Delete chat: ${chat.title}`}
-                                    >
-                                        <TrashIcon />
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
+                    <div className="p-2 space-y-3">
+                        {groupedChats.map(group => (
+                            <div key={group.label}>
+                                <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] opacity-60">
+                                    {group.label}
+                                </p>
+                                <ul className="space-y-0.5">
+                                    {group.chats.map((chat) => (
+                                        <li key={chat.id} className="group relative">
+                                            <button
+                                                onClick={() => onSwitchChat(chat.id)}
+                                                aria-label={`Switch to chat: ${chat.title}`}
+                                                className={`flex items-center gap-2 p-2 rounded-lg text-sm transition-colors w-full text-left ${
+                                                    activeChatId === chat.id
+                                                        ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] font-semibold shadow-sm'
+                                                        : 'hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]'
+                                                }`}
+                                            >
+                                                {getChatIcon(chat)}
+                                                <span className="flex-1 truncate pr-7 text-xs">{chat.title}</span>
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleDeleteClick(e, chat.id)}
+                                                className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500 transition-opacity focus:opacity-100"
+                                                aria-label={`Delete chat: ${chat.title}`}
+                                            >
+                                                <TrashIcon />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                        {chatHistory.length === 0 && (
+                            <p className="text-xs text-center text-[var(--text-secondary)] opacity-50 py-8">No chats yet. Start a conversation!</p>
+                        )}
                         {hasMoreChats && (
-                            <button 
+                            <button
                                 onClick={handleLoadMore}
                                 className="w-full py-2 text-xs font-bold text-[var(--accent-color)] hover:underline transition-all"
                             >

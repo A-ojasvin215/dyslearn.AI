@@ -16,6 +16,7 @@ interface SettingsModalProps {
   onLanguageChange: (language: Language) => void;
   voiceURI: string | null;
   onVoiceChange: (uri: string) => void;
+  availableVoices: SpeechSynthesisVoice[];
   dyslexiaSettings: DyslexiaSettings;
   onDyslexiaSettingsChange: (settings: DyslexiaSettings) => void;
   customInstructions: CustomInstructions;
@@ -56,6 +57,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onLanguageChange,
   voiceURI,
   onVoiceChange,
+  availableVoices,
   dyslexiaSettings,
   onDyslexiaSettingsChange,
   customInstructions,
@@ -78,8 +80,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onLogout,
   onDeleteAccount
 }) => {
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  
   // Auth State
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [emailInput, setEmailInput] = useState('');
@@ -121,24 +121,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setIsAuthLoading(false);
     }
   };
-
-  useEffect(() => {
-    // Voices are loaded asynchronously by the browser
-    const loadVoices = () => {
-      const voices = window.speechSynthesis.getVoices();
-      // Filter for voices that have a language code to make the list more relevant
-      if (voices.length > 0) {
-        setAvailableVoices(voices.filter(v => v.lang));
-      }
-    };
-
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-
-    return () => {
-      window.speechSynthesis.onvoiceschanged = null;
-    };
-  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -290,8 +272,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             ) : (
                 <form onSubmit={handleAuthSubmit} className="space-y-3 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div>
-                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                        <label htmlFor="auth-email" className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label>
                         <input 
+                            id="auth-email"
+                            name="email"
                             type="email" 
                             required
                             value={emailInput}
@@ -301,8 +285,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                        <label htmlFor="auth-password" className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Password</label>
                         <input 
+                            id="auth-password"
+                            name="password"
                             type="password" 
                             required
                             value={passwordInput}
@@ -427,9 +413,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </h3>
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <label htmlFor="dyslexia-font" className="text-sm font-medium text-gray-700 dark:text-gray-300">Dyslexia Friendly Mode</label>
+                    <span id="dyslexia-font-label" className="text-sm font-medium text-gray-700 dark:text-gray-300">Dyslexia Friendly Mode</span>
                     <button 
                         id="dyslexia-font"
+                        aria-labelledby="dyslexia-font-label"
+                        aria-pressed={dyslexiaSettings.enabled}
                         onClick={() => onDyslexiaSettingsChange({...dyslexiaSettings, enabled: !dyslexiaSettings.enabled})}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${dyslexiaSettings.enabled ? 'bg-teal-600' : 'bg-gray-200 dark:bg-gray-600'}`}
                     >
@@ -456,9 +444,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
                 
                 <div className="flex items-center justify-between pt-2">
-                    <label htmlFor="reading-ruler" className="text-sm font-medium text-gray-700 dark:text-gray-300">Reading Ruler</label>
+                    <span id="reading-ruler-label" className="text-sm font-medium text-gray-700 dark:text-gray-300">Reading Ruler</span>
                     <button 
                         id="reading-ruler"
+                        aria-labelledby="reading-ruler-label"
+                        aria-pressed={dyslexiaSettings.rulerEnabled}
                         onClick={() => onDyslexiaSettingsChange({...dyslexiaSettings, rulerEnabled: !dyslexiaSettings.rulerEnabled})}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${dyslexiaSettings.rulerEnabled ? 'bg-teal-600' : 'bg-gray-200 dark:bg-gray-600'}`}
                     >
@@ -467,9 +457,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
-                    <label htmlFor="hover-speech" className="text-sm font-medium text-gray-700 dark:text-gray-300">Hover to Speech</label>
+                    <span id="hover-speech-label" className="text-sm font-medium text-gray-700 dark:text-gray-300">Hover to Speech</span>
                     <button 
                         id="hover-speech"
+                        aria-labelledby="hover-speech-label"
+                        aria-pressed={dyslexiaSettings.hoverSpeechEnabled}
                         onClick={() => onDyslexiaSettingsChange({...dyslexiaSettings, hoverSpeechEnabled: !dyslexiaSettings.hoverSpeechEnabled})}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${dyslexiaSettings.hoverSpeechEnabled ? 'bg-teal-600' : 'bg-gray-200 dark:bg-gray-600'}`}
                     >
@@ -559,11 +551,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                     <div>
-                        <label htmlFor="daily-reminders" className="text-sm font-medium text-gray-700 dark:text-gray-300">Daily Goal Reminders</label>
+                        <span id="daily-reminders-label" className="text-sm font-medium text-gray-700 dark:text-gray-300">Daily Goal Reminders</span>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Get notified to complete your daily games and practice.</p>
                     </div>
                     <button 
                         id="daily-reminders"
+                        aria-labelledby="daily-reminders-label"
+                        aria-pressed={notificationsEnabled}
                         onClick={handleNotificationToggle}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${notificationsEnabled ? 'bg-teal-600' : 'bg-gray-200 dark:bg-gray-600'}`}
                     >
@@ -589,11 +583,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                     <div>
-                        <label htmlFor="daily-time-limit" className="text-sm font-medium text-gray-700 dark:text-gray-300">2-Hour Daily Limit</label>
+                        <span id="daily-time-limit-label" className="text-sm font-medium text-gray-700 dark:text-gray-300">2-Hour Daily Limit</span>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Prompt you to take a break after using the app for 2 hours each day.</p>
                     </div>
                     <button 
                         id="daily-time-limit"
+                        aria-labelledby="daily-time-limit-label"
+                        aria-pressed={enableDailyTimeLimit}
                         onClick={() => onEnableDailyTimeLimitChange(!enableDailyTimeLimit)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${enableDailyTimeLimit ? 'bg-teal-600' : 'bg-gray-200 dark:bg-gray-600'}`}
                     >
@@ -605,12 +601,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           
           {/* Theme Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Theme</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Theme</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="group" aria-label="Theme selection">
               {themes.map(({ name, label }) => (
                 <button
                   key={name}
                   onClick={() => onThemeChange(name)}
+                  aria-pressed={theme === name}
                   className={`px-4 py-2 text-sm font-semibold rounded-lg border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 dark:focus:ring-offset-gray-800 ${
                     theme === name
                       ? 'bg-teal-600 border-teal-600 text-white'
@@ -625,12 +622,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Background Style Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Background Style</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Background Style</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2" role="group" aria-label="Background style selection">
               {backgroundStyles.map(({ name, label }) => (
                 <button
                   key={name}
                   onClick={() => onBackgroundStyleChange(name)}
+                  aria-pressed={backgroundStyle === name}
                   className={`px-4 py-2 text-sm font-semibold rounded-lg border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 dark:focus:ring-offset-gray-800 ${
                     backgroundStyle === name
                       ? 'bg-teal-600 border-teal-600 text-white'
@@ -714,11 +712,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700">
                     <div>
-                        <label htmlFor="enable-ai-images" className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable AI Image Generation</label>
+                        <span id="enable-ai-images-label" className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable AI Image Generation</span>
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Allow AI to create custom visual aids when local assets aren't found.</p>
                     </div>
                     <button 
                         id="enable-ai-images"
+                        aria-labelledby="enable-ai-images-label"
+                        aria-pressed={enableImageGeneration}
                         onClick={() => onEnableImageGenerationChange(!enableImageGeneration)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${enableImageGeneration ? 'bg-teal-600' : 'bg-gray-200 dark:bg-gray-600'}`}
                     >
@@ -728,12 +728,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div className={enableImageGeneration ? 'space-y-4' : 'opacity-40 pointer-events-none space-y-4'}>
                     <div>
-                        <label htmlFor="image-provider" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preferred Provider</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preferred Provider</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="Image provider selection">
                             {IMAGE_PROVIDERS.map((provider) => (
                                 <button
                                     key={provider.id}
                                     onClick={() => onImageProviderChange(provider.id as ImageProvider)}
+                                    aria-pressed={selectedImageProvider === provider.id}
                                     className={`px-4 py-2 text-sm font-semibold rounded-lg border-2 transition-all ${
                                         selectedImageProvider === provider.id
                                             ? 'bg-teal-600 border-teal-600 text-white'

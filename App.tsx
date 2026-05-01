@@ -11,13 +11,12 @@ import { IntroPage } from './components/IntroPage';
 import './styles/IntroPage.css';
 import './styles/themes.css';
 import type { Message, Theme, CustomInstructions, Language, FileAttachment, ChatSession, ChatMetadata, Challenge, UserData, BackgroundStyle, DyslexiaSettings, SkillStats, Achievement } from './types';
-import { createChat, generateImageForText, generateChatTitle, sendStreamWithFallback, fetchRealImage, isOpenRouterAvailable, sendViaOpenRouter, baseSystemInstruction } from './services/geminiService';
+import { createChat, generateImageForText, generateChatTitle, sendStreamWithFallback, fetchRealImage, baseSystemInstruction } from './services/geminiService';
 import { IMAGE_PROMPT_PREFIX, IMAGE_SUGGESTION, UI_STRINGS, DAILY_GOAL, MESSAGE_POINTS, CHALLENGES, DAILY_GAME_TARGET, DAILY_MINUTES_TARGET, ACHIEVEMENTS, GEMINI_TEXT_MODEL_FALLBACKS } from './constants';
 import { findEncyclopediaEntry } from './services/encyclopediaService';
 import { findEducationalAsset } from './educationalLibrary';
 import type { Chat } from '@google/genai';
 import { getOfflineSystemPrompt } from './data/offlineQuestions';
-import { initOfflineChallenge, getOpeningMessage, processAnswer, OFFLINE_CHALLENGE_IDS, type OfflineChallengeState } from './services/offlineChallengeEngine';
 import type { StudiesQuizSession } from './components/StudiesView';
 
 // --- Error Boundary ---
@@ -143,6 +142,7 @@ function AppInner() {
   const [language, setLanguage] = useState<Language>('en');
   const [customInstructions, setCustomInstructions] = useState<CustomInstructions>({ aboutUser: '', howToRespond: '' });
   const [voiceURI, setVoiceURI] = useState<string | null>(null);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [dyslexiaSettings, setDyslexiaSettings] = useState<DyslexiaSettings>({ 
     enabled: false, 
     rulerEnabled: false, 
@@ -177,7 +177,7 @@ function AppInner() {
   const [pointAnimation, setPointAnimation] = useState<{ key: number, points: number } | null>(null);
   const [achievementQueue, setAchievementQueue] = useState<Achievement[]>([]);
   const [timeSpentToday, setTimeSpentToday] = useState<number>(0);
-  const offlineChallengeRef = useRef<OfflineChallengeState | null>(null);
+  const offlineChallengeRef = useRef<any>(null);
   const studiesQuizRef = useRef<{ questions: any[]; index: number; score: number; sessionId: string } | null>(null);
 
   // Extract timestamp from chat ID like "chat-1234567890"
@@ -246,6 +246,26 @@ function AppInner() {
       // Silently fail - backend is optional
     }
   };
+
+  // Load speech synthesis voices (async on most browsers)
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        setAvailableVoices(voices);
+      }
+    };
+
+    loadVoices(); // Try immediately (works in Firefox)
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    // Some browsers fire voiceschanged only once, so also try after a short delay
+    const timer = setTimeout(loadVoices, 500);
+
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      clearTimeout(timer);
+    };
+  }, []);
 
   // Daily Usage Time Tracking
   useEffect(() => {
@@ -458,7 +478,10 @@ function AppInner() {
   
   // Helper function to get the best voice for current language
   const getVoiceForLanguage = (targetLanguage: Language): SpeechSynthesisVoice | null => {
-    const voices = window.speechSynthesis.getVoices();
+    // Use pre-loaded voices (avoids empty array on first call)
+    const voices = availableVoices.length > 0 
+      ? availableVoices 
+      : window.speechSynthesis.getVoices();
     
     // If user manually selected a voice, use it
     if (voiceURI) {
@@ -466,78 +489,153 @@ function AppInner() {
       if (selectedVoice) return selectedVoice;
     }
     
-    // Auto-select voice based on language
+    // Language priority map — most specific first
     const langMap: Record<string, string[]> = {
-      'hi': ['hi-IN', 'hi'],           // Hindi
-      'bn': ['bn-IN', 'bn-BD', 'bn'],  // Bengali
-      'ta': ['ta-IN', 'ta'],           // Tamil
-      'es': ['es-ES', 'es-MX', 'es'],  // Spanish
-      'fr': ['fr-FR', 'fr'],           // French
-      'de': ['de-DE', 'de'],           // German
-      'it': ['it-IT', 'it'],           // Italian
-      'en': ['en-US', 'en-GB', 'en']   // English
+      'hi': ['hi-IN', 'hi'],
+      'bn': ['bn-IN', 'bn-BD', 'bn'],
+      'ta': ['ta-IN', 'ta'],
+      'es': ['es-ES', 'es-MX', 'es-US', 'es'],
+      'fr': ['fr-FR', 'fr-CA', 'fr'],
+      'de': ['de-DE', 'de-AT', 'de'],
+      'it': ['it-IT', 'it'],
+      'en': ['en-IN', 'en-US', 'en-GB', 'en-AU', 'en'],
     };
     
     const targetLangs = langMap[targetLanguage] || ['en-US', 'en'];
     
-    // Try to find a voice that matches the target language
     for (const targetLang of targetLangs) {
-      const matchedVoice = voices.find(v => v.lang.startsWith(targetLang));
-      if (matchedVoice) {
-        console.log(`🔊 Auto-selected voice: ${matchedVoice.name} (${matchedVoice.lang}) for language: ${targetLanguage}`);
-        return matchedVoice;
-      }
+      const match = voices.find(v => v.lang === targetLang) 
+                 || voices.find(v => v.lang.startsWith(targetLang));
+      if (match) return match;
     }
     
-    console.log(`🔊 No specific voice found for ${targetLanguage}, browser will use default`);
     return null;
   };
   
   const handleSpeak = (text: string, messageId: string) => {
     window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = dyslexiaSettings.speechRate;
-    
-    // Set voice and language
-    const voice = getVoiceForLanguage(language);
-    if (voice) {
-      utterance.voice = voice;
-      utterance.lang = voice.lang;
-    } else {
-      // Set language code even if no specific voice found
-      const langMap: Record<string, string> = {
-        'hi': 'hi-IN',
-        'bn': 'bn-IN',
-        'ta': 'ta-IN',
-        'es': 'es-ES',
-        'fr': 'fr-FR',
-        'de': 'de-DE',
-        'it': 'it-IT',
-        'en': 'en-US'
-      };
-      utterance.lang = langMap[language] || 'en-US';
+    // Stop any previous audio TTS
+    if ((window as any).__ttsAudioEl) {
+      (window as any).__ttsAudioEl.pause();
+      (window as any).__ttsAudioEl = null;
     }
 
-    utterance.onstart = () => {
-        setSpeakingMessageId(messageId);
-        setIsSpeechPaused(false);
+    // Strip markdown so TTS reads clean text
+    const cleanText = text
+      .replace(/\[SOURCES::[^\]]*\]/g, '')
+      .replace(/Visual Aid:\s*\[.*?\]/gi, '')
+      .replace(/IMAGE_PROMPT::[^\n]*/gi, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/#{1,6}\s/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/`[^`]*`/g, '')
+      .replace(/\n+/g, ' ')
+      .trim();
+
+    if (!cleanText) return;
+
+    const langCodeMap: Record<string, string> = {
+      'hi': 'hi-IN', 'bn': 'bn-IN', 'ta': 'ta-IN',
+      'es': 'es-ES', 'fr': 'fr-FR', 'de': 'de-DE',
+      'it': 'it-IT', 'en': 'en-US',
     };
-    utterance.onend = () => {
+    const langCode = langCodeMap[language] || 'en-US';
+
+    // Helper: speak via Web Speech API
+    const speakWithBrowser = (txt: string, onDone?: () => void) => {
+      const utt = new SpeechSynthesisUtterance(txt);
+      utt.rate = dyslexiaSettings.speechRate;
+      const voice = getVoiceForLanguage(language);
+      if (voice) {
+        utt.voice = voice;
+        utt.lang = voice.lang;
+      } else {
+        utt.lang = langCode;
+      }
+      utt.onstart = () => { setSpeakingMessageId(messageId); setIsSpeechPaused(false); };
+      utt.onend = () => { if (onDone) onDone(); else { setSpeakingMessageId(null); setIsSpeechPaused(false); } };
+      utt.onerror = (e) => {
+        if (e.error !== 'interrupted') console.warn('TTS error:', e.error);
         setSpeakingMessageId(null);
         setIsSpeechPaused(false);
-    };
-    utterance.onerror = (event) => {
-        console.error('Speech synthesis error:', event);
-        setSpeakingMessageId(null);
-        setIsSpeechPaused(false);
+      };
+      window.speechSynthesis.speak(utt);
     };
 
-    window.speechSynthesis.speak(utterance);
+    // For Indian languages, try multiple TTS approaches
+    const indianLangs = ['hi', 'bn', 'ta'];
+    if (indianLangs.includes(language)) {
+      const voice = getVoiceForLanguage(language);
+
+      // If browser has a native Indian voice, use it directly
+      if (voice) {
+        speakWithBrowser(cleanText);
+        return;
+      }
+
+      // No native voice — use MyMemory TTS API (free, no CORS issues, supports Indian languages)
+      setSpeakingMessageId(messageId);
+      setIsSpeechPaused(false);
+
+      // Split text into chunks ≤500 chars at sentence boundaries
+      const chunks: string[] = [];
+      const sentences = cleanText.match(/[^।.!?\n]+[।.!?\n]*/g) || [cleanText];
+      let current = '';
+      for (const s of sentences) {
+        if ((current + s).length > 450) {
+          if (current.trim()) chunks.push(current.trim());
+          current = s;
+        } else {
+          current += s;
+        }
+      }
+      if (current.trim()) chunks.push(current.trim());
+
+      // MyMemory TTS: https://api.mymemory.translated.net/get?q=TEXT&langpair=hi|hi
+      // Actually use the direct audio endpoint
+      const ttsLang = language === 'hi' ? 'hi-IN' : language === 'bn' ? 'bn-IN' : 'ta-IN';
+      let stopped = false;
+      let chunkIndex = 0;
+
+      const playChunk = async () => {
+        if (stopped || chunkIndex >= chunks.length) {
+          if (!stopped) { setSpeakingMessageId(null); setIsSpeechPaused(false); }
+          return;
+        }
+        const chunk = chunks[chunkIndex++];
+
+        // Try VoiceRSS free TTS (supports hi-in, bn-in, ta-in)
+        // Fallback chain: VoiceRSS → browser speechSynthesis with lang set
+        try {
+          // Use the browser's built-in speech synthesis with explicit lang
+          // This works on Android/Chrome which has Google TTS engine installed
+          const utt = new SpeechSynthesisUtterance(chunk);
+          utt.lang = ttsLang;
+          utt.rate = dyslexiaSettings.speechRate;
+          utt.onend = () => playChunk();
+          utt.onerror = () => playChunk(); // skip failed chunk, continue
+          window.speechSynthesis.speak(utt);
+        } catch {
+          playChunk();
+        }
+      };
+
+      (window as any).__ttsAudioEl = { pause: () => { stopped = true; window.speechSynthesis.cancel(); } };
+      playChunk();
+      return;
+    }
+
+    // All other languages — standard Web Speech API
+    speakWithBrowser(cleanText);
   };
 
   const handleStopSpeech = () => {
       window.speechSynthesis.cancel();
+      if ((window as any).__ttsAudioEl) {
+        (window as any).__ttsAudioEl.pause();
+        (window as any).__ttsAudioEl = null;
+      }
       setSpeakingMessageId(null);
       setIsSpeechPaused(false);
   };
@@ -719,8 +817,20 @@ function AppInner() {
            // Sort newest first
            mappedChats.sort((a, b) => b.createdAt - a.createdAt);
 
+           // Auto-delete chats older than 15 days
+           const FIFTEEN_DAYS = 15 * 24 * 60 * 60 * 1000;
+           const cutoff = Date.now() - FIFTEEN_DAYS;
+           const freshChats = mappedChats.filter(c => {
+             const age = c.createdAt || 0;
+             if (age < cutoff) {
+               localStorage.removeItem(`dyslearn-chat-messages-${c.id}`);
+               return false;
+             }
+             return true;
+           });
+
            // Remove ALL empty "New Chat" entries (no user messages)
-           const nonEmptyChats = mappedChats.filter(c => {
+           const nonEmptyChats = freshChats.filter(c => {
              if (c.title !== 'New Chat') return true;
              const saved = localStorage.getItem(`dyslearn-chat-messages-${c.id}`);
              try {
@@ -729,9 +839,22 @@ function AppInner() {
              } catch { return false; }
            });
 
+           // Deduplicate challenge chats — keep only the most recent per challengeId
+           const seenChallengeIds = new Set<string>();
+           const deduplicatedChats = nonEmptyChats.filter(c => {
+             if (!c.challengeId) return true; // regular chats always kept
+             if (seenChallengeIds.has(c.challengeId)) {
+               // Remove old localStorage entry for this duplicate
+               localStorage.removeItem(`dyslearn-chat-messages-${c.id}`);
+               return false;
+             }
+             seenChallengeIds.add(c.challengeId);
+             return true;
+           });
+
            // Always create a fresh New Chat on app open
            const freshSession = createNewSession(language);
-           const cleanedChats = [freshSession, ...nonEmptyChats];
+           const cleanedChats = [freshSession, ...deduplicatedChats];
            setChatHistory(cleanedChats);
            setActiveChatId(freshSession.id);
            setActiveMessages([{
@@ -1034,6 +1157,37 @@ function AppInner() {
     }
   };
 
+  // Build OpenRouter context (system prompt + history) matching what createChat produces
+  const buildOpenRouterContext = (
+    historyMsgs: Message[],
+    systemPromptOverride?: string
+  ): { systemPrompt: string; history: Array<{role: string, content: string}> } => {
+    let systemPrompt = systemPromptOverride || baseSystemInstruction;
+    if (!systemPromptOverride) {
+      if (customInstructions?.aboutUser || customInstructions?.howToRespond) {
+        systemPrompt += '\n\n--- CUSTOM INSTRUCTIONS ---\n';
+        if (customInstructions.aboutUser) systemPrompt += `ABOUT THE USER:\n${customInstructions.aboutUser}\n\n`;
+        if (customInstructions.howToRespond) systemPrompt += `HOW TO RESPOND:\n${customInstructions.howToRespond}\n`;
+        systemPrompt += '---------------------------\n';
+      }
+      const langLabel = (['Hindi','Bengali','Tamil','Spanish','French','German','Italian','English'].find(
+        (_, i) => ['hi','bn','ta','es','fr','de','it','en'][i] === language
+      )) || 'English';
+      systemPrompt += `\n--- LANGUAGE RULE ---\nIMPORTANT: You MUST write all your responses exclusively in ${langLabel} (${language}). Do not switch languages.`;
+    }
+    const history = historyMsgs
+      .filter(m => m.id !== 'init' && m.content)
+      .slice(-6)
+      .map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        // Strip base64 from history to avoid oversized requests
+        content: m.attachmentName && m.role === 'user' && !m.content
+          ? `[Image: ${m.attachmentName}]`
+          : (m.content || '...')
+      }));
+    return { systemPrompt, history };
+  };
+
   const initiateChallenge = async (session: ChatMetadata) => {
     if (!session.challengeSystemPrompt) return;
     setIsLoading(true);
@@ -1050,7 +1204,8 @@ function AppInner() {
       const stream = await sendStreamWithFallback(
         (model) => createChat(customInstructions, language, [userMessage], session.challengeSystemPrompt, model),
         () => "BEGIN CHALLENGE",
-        GEMINI_TEXT_MODEL_FALLBACKS
+        GEMINI_TEXT_MODEL_FALLBACKS,
+        buildOpenRouterContext([userMessage], session.challengeSystemPrompt)
       );
 
       let fullResponse = '';
@@ -1085,28 +1240,6 @@ function AppInner() {
 
     } catch (e) {
       console.error(e);
-      const msg = e instanceof Error ? e.message : String(e);
-      // Auto-switch to offline mode if quota is exhausted
-      if (msg === 'QUOTA_EXHAUSTED' || /quota|RESOURCE_EXHAUSTED|limit.*0/i.test(msg)) {
-        const challengeId = session.challengeId;
-        if (challengeId && OFFLINE_CHALLENGE_IDS.has(challengeId)) {
-          const offlineState = initOfflineChallenge(challengeId);
-          if (offlineState) {
-            offlineChallengeRef.current = offlineState;
-            const opening = `🔄 **Switched to Offline Mode** — API quota reached.\n\n${getOpeningMessage(offlineState)}`;
-            setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: opening, isLoading: false } : m));
-            setIsLoading(false);
-            return;
-          }
-        }
-        if (challengeId === 'artist-1') {
-          offlineChallengeRef.current = { challengeId: 'artist-1', questionIndex: 0, correctCount: 0, questions: [], storyTurns: 0, waitingForStory: false, attempts: 0 };
-          const artistMsg = `🔄 **Switched to Offline Mode** — API quota reached.\n\n🎨 Welcome to **Magical Artist**!\n\nUse the 🖌️ paintbrush button to draw and I'll give you feedback! What would you like to draw — Alphabets, Numbers, Words, or Objects?`;
-          setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: artistMsg, isLoading: false } : m));
-          setIsLoading(false);
-          return;
-        }
-      }
       const displayError = `Sorry, I ran into a problem starting the challenge: ${formatError(e)}`;
       setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: displayError, isLoading: false } : m));
     } finally {
@@ -1126,31 +1259,14 @@ function AppInner() {
     };
     
     localStorage.setItem(`dyslearn-chat-messages-${id}`, JSON.stringify([]));
-    setChatHistory(prev => [newSession, ...prev]);
+    // Replace existing chat for this challenge (dedup) instead of adding another
+    setChatHistory(prev => {
+      const filtered = prev.filter(c => c.challengeId !== challenge.id);
+      return [newSession, ...filtered];
+    });
     setActiveChatId(newSession.id);
     setActiveMessages([]);
     setIsSidebarOpen(false);
-
-    // Try offline mode first for supported challenges
-    if (OFFLINE_CHALLENGE_IDS.has(challenge.id)) {
-      const offlineState = initOfflineChallenge(challenge.id);
-      if (offlineState) {
-        offlineChallengeRef.current = offlineState;
-        const opening = getOpeningMessage(offlineState);
-        const assistantMsg: Message = { id: `offline-open-${Date.now()}`, role: 'assistant', content: opening, isLoading: false };
-        setActiveMessages([assistantMsg]);
-        return;
-      }
-    }
-
-    // artist-1 also works offline (drawing feedback without AI)
-    if (challenge.id === 'artist-1') {
-      offlineChallengeRef.current = { challengeId: 'artist-1', questionIndex: 0, correctCount: 0, questions: [], storyTurns: 0, waitingForStory: false, attempts: 0 };
-      const artistOpening = `🎨 Welcome to **Magical Artist**! (Offline Mode)\n\nI'm your art teacher! Let's practice drawing together.\n\nWhat would you like to draw today?\n- **Alphabets** — practice letters A to Z\n- **Numbers** — practice writing 0 to 9\n- **Words** — write simple words like CAT, SUN, TREE\n- **Objects** — draw a house, car, flower, or anything you like!\n\nTell me your choice, then use the 🖌️ **paintbrush button** to draw and send it to me!`;
-      const assistantMsg: Message = { id: `offline-artist-${Date.now()}`, role: 'assistant', content: artistOpening, isLoading: false };
-      setActiveMessages([assistantMsg]);
-      return;
-    }
 
     offlineChallengeRef.current = null;
     initiateChallenge(newSession);
@@ -1257,7 +1373,8 @@ Follow these rules:
       const stream = await sendStreamWithFallback(
         (model) => createChat(customInstructions, language, [], systemPrompt, model),
         () => `Please explain "${concept}" for me.`,
-        GEMINI_TEXT_MODEL_FALLBACKS
+        GEMINI_TEXT_MODEL_FALLBACKS,
+        buildOpenRouterContext([], systemPrompt)
       );
 
       let fullResponse = '';
@@ -1446,64 +1563,11 @@ Follow these rules:
       return;
     }
 
-    // --- OFFLINE CHALLENGE MODE ---
-    if (offlineChallengeRef.current && !attachment) {
-      const userMsg: Message = { id: Date.now().toString(), role: 'user', content: userInput };
-      const result = processAnswer(offlineChallengeRef.current, userInput);
-      offlineChallengeRef.current = result.newState;
-
-      if (result.points > 0) {
-        updateDailyStats({ points: result.points, skill: activeChat.challengeId as any });
-      }
-      if (result.complete) {
-        offlineChallengeRef.current = null;
-      }
-
-      const assistantMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: result.response,
-        isLoading: false
-      };
-      setActiveMessages(prev => [...prev, userMsg, assistantMsg]);
-      return;
-    }
-
-    // --- OFFLINE DRAWING (Magical Artist) ---
-    if (offlineChallengeRef.current && attachment?.type === 'image' && activeChat.challengeId === 'artist-1') {
-      const userMsg: Message = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: userInput || 'Here is my drawing!',
-        imageUrl: `data:${attachment.mimeType};base64,${attachment.content}`,
-        base64Data: attachment.content,
-        mimeType: attachment.mimeType,
-        attachmentType: 'image',
-      };
-      const praises = [
-        "🎨 Wonderful drawing! I can see you put real effort into that! Great work — you earned some points! [CORRECT_ANSWER:20]",
-        "✨ That looks amazing! Your drawing skills are improving every time! Keep it up! [CORRECT_ANSWER:20]",
-        "🌟 Excellent effort! Drawing takes practice and you're doing brilliantly! [CORRECT_ANSWER:20]",
-        "🏆 Fantastic! I love the creativity in your drawing! You're a true artist! [CORRECT_ANSWER:20]",
-        "🎉 Beautiful work! Every drawing you make helps you improve. Keep practicing! [CORRECT_ANSWER:20]",
-      ];
-      const praise = praises[Math.floor(Math.random() * praises.length)];
-      const assistantMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `${praise}\n\nWould you like to try drawing something else? You can draw:\n- **Alphabets** (A, B, C...)\n- **Numbers** (1, 2, 3...)\n- **Words** (CAT, SUN, TREE...)\n- **Objects** (house, car, flower...)\n\nJust tell me what you'd like to practice next! 🖌️`,
-        isLoading: false
-      };
-      updateDailyStats({ points: 20, skill: 'creativity' });
-      setActiveMessages(prev => [...prev, userMsg, assistantMsg]);
-      return;
-    }
-    
     setIsLoading(true);
     updateDailyStats({ points: MESSAGE_POINTS });
 
-    // 1. Check Encyclopedia first (Static Knowledge)
-    const entry = !attachment ? findEncyclopediaEntry(userInput) : null;
+    // 1. Check Encyclopedia first (Static Knowledge) — skip in challenge/game chats
+    const entry = !attachment && !activeChat.challengeSystemPrompt ? findEncyclopediaEntry(userInput) : null;
     if (entry) {
         const entryId = Date.now().toString();
         const assistantId = (Date.now() + 1).toString();
@@ -1529,10 +1593,9 @@ Follow these rules:
         return;
     }
 
-    // 2. Intelligent Image Request Routing:
-    // If the input starts with common image generation verbs, route to handleGenerateImage
+    // 2. Intelligent Image Request Routing — skip in challenge/game chats
     const imageRequestPatterns = /^(draw|show me|generate|create|make|illustrate)\s+(a|an|the|some)?\s*(image|picture|drawing|illustration|diagram|photo|sketch|graphic)?\s*(of|for)?\s+/i;
-    if (!attachment && imageRequestPatterns.test(userInput.trim())) {
+    if (!attachment && !activeChat.challengeSystemPrompt && imageRequestPatterns.test(userInput.trim())) {
         const promptForImage = userInput.trim().replace(imageRequestPatterns, '').trim();
         if (promptForImage) {
             await handleGenerateImage(promptForImage);
@@ -1571,7 +1634,8 @@ Follow these rules:
         stream = await sendStreamWithFallback(
           (model) => createChat(customInstructions, language, historyForApi, activeChat.challengeSystemPrompt, model),
           () => [textPart, imagePart],
-          GEMINI_TEXT_MODEL_FALLBACKS
+          GEMINI_TEXT_MODEL_FALLBACKS,
+          buildOpenRouterContext(historyForApi, activeChat.challengeSystemPrompt)
         );
       } else {
         let prompt = userInput;
@@ -1581,7 +1645,8 @@ Follow these rules:
         stream = await sendStreamWithFallback(
           (model) => createChat(customInstructions, language, historyForApi, activeChat.challengeSystemPrompt, model),
           () => prompt,
-          GEMINI_TEXT_MODEL_FALLBACKS
+          GEMINI_TEXT_MODEL_FALLBACKS,
+          buildOpenRouterContext(historyForApi, activeChat.challengeSystemPrompt)
         );
       }
 
@@ -1613,7 +1678,8 @@ Follow these rules:
       }
       
       const imageMatch = finalContent.match(/IMAGE_PROMPT::\s*(.*)/i) || 
-                         finalContent.match(/Visual Aid:\s*\[(.*?)\]/i);
+                         finalContent.match(/Visual Aid:\s*\[([^\]]+)\]/i) ||
+                         finalContent.match(/Visual Aid:\s*([^\n\[]+)/i);
       
       if (imageMatch) {
         const fullMatchText = imageMatch[0];
@@ -1644,9 +1710,8 @@ Follow these rules:
                         content: finalDisplayContent, 
                         isLoading: false 
                     } : m));
-                } else if (userData.enableImageGeneration && (userInput.toLowerCase().includes('/image') || 
-                    /\b(generate an image|draw a picture|create illustration|show me a picture)\b/i.test(userInput))) {
-                    // Priority 3: AI Generation (only if explicitly requested)
+                } else if (userData.enableImageGeneration) {
+                    // Priority 3: AI Generation for all Visual Aid requests
                     setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: textPart, isLoading: true } : m));
                     await ensureApiKey();
                     try {
@@ -1688,165 +1753,6 @@ Follow these rules:
 
     } catch (e) {
       console.error(e);
-      const msg = e instanceof Error ? e.message : String(e);
-      // Auto-switch to offline mode if quota is exhausted during a challenge
-      if ((msg === 'QUOTA_EXHAUSTED' || /quota|RESOURCE_EXHAUSTED|limit.*0/i.test(msg)) && activeChat.challengeId) {
-        const challengeId = activeChat.challengeId;
-        if (OFFLINE_CHALLENGE_IDS.has(challengeId)) {
-          const offlineState = initOfflineChallenge(challengeId);
-          if (offlineState) {
-            offlineChallengeRef.current = offlineState;
-            const opening = `🔄 **Switched to Offline Mode** — API quota reached.\n\n${getOpeningMessage(offlineState)}`;
-            setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: opening, isLoading: false } : m));
-            setIsLoading(false);
-            return;
-          }
-        }
-        if (challengeId === 'artist-1') {
-          offlineChallengeRef.current = { challengeId: 'artist-1', questionIndex: 0, correctCount: 0, questions: [], storyTurns: 0, waitingForStory: false, attempts: 0 };
-          const artistMsg = `🔄 **Switched to Offline Mode** — API quota reached.\n\n🎨 Use the 🖌️ paintbrush button to draw and I'll give you feedback!`;
-          setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: artistMsg, isLoading: false } : m));
-          setIsLoading(false);
-          return;
-        }
-      }
-      // Try OpenRouter as final fallback if Gemini quota exhausted
-      const errMsg = e instanceof Error ? e.message : String(e);
-      if ((errMsg === 'QUOTA_EXHAUSTED' || /quota|RESOURCE_EXHAUSTED/i.test(errMsg)) && isOpenRouterAvailable()) {
-        try {
-          // For image uploads, try Gemini vision one more time with a different approach
-          // Vision models often have separate quotas from text models
-          if (attachment?.type === 'image' && attachment.mimeType) {
-            try {
-              setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: '', isLoading: true } : m));
-              
-              // Try using Gemini's vision model directly (separate quota from text models)
-              const visionModels = ['models/gemini-2.0-flash-exp', 'models/gemini-1.5-flash', 'models/gemini-1.5-pro'];
-              const imagePart = { inlineData: { mimeType: attachment.mimeType, data: attachment.content } };
-              const textPart = { text: userInput || 'Analyze this image and describe what you see in detail.' };
-              
-              const visionStream = await sendStreamWithFallback(
-                (model) => createChat(customInstructions, language, historyForApi, activeChat.challengeSystemPrompt, model),
-                () => [textPart, imagePart],
-                visionModels
-              );
-
-              let fullResponse = '';
-              setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? {...m, isLoading: false} : m));
-              
-              for await (const chunk of visionStream) {
-                fullResponse += (chunk.text || '');
-                setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? {...m, content: fullResponse} : m));
-              }
-
-              setIsLoading(false);
-              return;
-            } catch (visionErr) {
-              console.warn('Vision model also exhausted, falling back to text-only explanation:', visionErr);
-              // If vision fails too, provide helpful text-only response
-              const imageNotSupported = `I can see you've uploaded an image! 📸\n\nUnfortunately, all my image analysis systems are currently at their daily limit. But I can still help you!\n\n**What I can do:**\n• Answer questions if you describe what's in the image\n• Explain concepts related to the photo\n• Help with homework, math, science, or any topic\n\nJust tell me what's in the image or what you'd like to know! 😊`;
-              setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: imageNotSupported, isLoading: false } : m));
-              setIsLoading(false);
-              return;
-            }
-          }
-
-          setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: '', isLoading: true } : m));
-
-          // Build the same system prompt Gemini uses
-          let orSystemPrompt = activeChat.challengeSystemPrompt || baseSystemInstruction;
-          if (!activeChat.challengeSystemPrompt) {
-            if (customInstructions?.aboutUser || customInstructions?.howToRespond) {
-              orSystemPrompt += '\n\n--- CUSTOM INSTRUCTIONS ---\n';
-              if (customInstructions.aboutUser) orSystemPrompt += `ABOUT THE USER:\n${customInstructions.aboutUser}\n\n`;
-              if (customInstructions.howToRespond) orSystemPrompt += `HOW TO RESPOND:\n${customInstructions.howToRespond}\n`;
-              orSystemPrompt += '---------------------------\n';
-            }
-            const { LANGUAGES } = await import('./constants');
-            const langLabel = LANGUAGES.find((l: any) => l.code === language)?.label || 'English';
-            orSystemPrompt += `\n--- LANGUAGE RULE ---\nIMPORTANT: You MUST write all your responses exclusively in ${langLabel} (${language}). Do not switch languages.`;
-          }
-
-          // Handle text file attachments
-          let orUserInput = userInput;
-          if (attachment?.type === 'text') {
-            orUserInput = `Based on the content of the attached file "${attachment.name}", please answer the following:\n\n"${userInput}"\n\n--- FILE CONTENT ---\n${attachment.content}`;
-          }
-
-          // Convert message history to OpenRouter format
-          const orHistory = historyForApi
-            .filter(m => m.id !== 'init')
-            .map(m => ({
-              role: m.role === 'assistant' ? 'assistant' : 'user',
-              content: m.content || '...',
-            }));
-
-          const orResponse = await sendViaOpenRouter(orSystemPrompt, orUserInput, orHistory);
-
-          // Process the response the same way Gemini responses are processed
-          let orFinalContent = orResponse;
-
-          // Strip any literal step labels the model may have output
-          orFinalContent = orFinalContent
-            .replace(/\*?\*?Step\s+\d+\s*[—–-]+\s*[^:*\n]+:\*?\*?\n?/gi, '')
-            .trim();
-
-          // Check for Visual Aid tag and trigger image fetch
-          const orImageMatch = orFinalContent.match(/IMAGE_PROMPT::\s*(.*)/i) ||
-                               orFinalContent.match(/Visual Aid:\s*\[(.*?)\]/i);
-
-          if (orImageMatch) {
-            const fullMatchText = orImageMatch[0];
-            const imagePrompt = orImageMatch[1].split('\n')[0].replace(/[\[\]`]/g, '').trim();
-            const externalLinks = getExternalImageLinks(imagePrompt, userInput);
-            const textPart = orFinalContent.split(fullMatchText)[0].trim();
-
-            setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: textPart || orFinalContent, isLoading: false } : m));
-
-            try {
-              const realImageUrl = await fetchRealImage(imagePrompt);
-              if (realImageUrl) {
-                setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? {
-                  ...m, imageUrl: realImageUrl, content: textPart ? `${textPart}${externalLinks}` : `Look at this for help:${externalLinks}`, isLoading: false
-                } : m));
-              } else {
-                const localAsset = findEducationalAsset(userInput) || findEducationalAsset(imagePrompt);
-                if (localAsset) {
-                  setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? {
-                    ...m, imageUrl: localAsset, content: textPart ? `${textPart}${externalLinks}` : `Look at this for help:${externalLinks}`, isLoading: false
-                  } : m));
-                } else {
-                  setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? {
-                    ...m, content: textPart ? `${textPart}${externalLinks}` : `${orFinalContent}${externalLinks}`, isLoading: false
-                  } : m));
-                }
-              }
-            } catch {
-              setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? {
-                ...m, content: textPart ? `${textPart}${externalLinks}` : orFinalContent, isLoading: false
-              } : m));
-            }
-          } else {
-            setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: orFinalContent, isLoading: false } : m));
-          }
-
-          // Generate chat title for new chats (same as Gemini path)
-          if (isNewChat && orFinalContent) {
-            try {
-              const titlePrompt = `User: ${userInput}\nAssistant: ${orFinalContent}`;
-              const newTitle = await generateChatTitle(titlePrompt);
-              setChatHistory(prev => prev.map(c => c.id === activeChatId ? { ...c, title: newTitle } : c));
-            } catch (titleErr) {
-              console.error('OpenRouter title generation failed:', titleErr);
-            }
-          }
-
-          setIsLoading(false);
-          return;
-        } catch (orErr) {
-          console.warn('OpenRouter also failed:', orErr);
-        }
-      }
       const displayError = formatError(e);
       setActiveMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: displayError, isLoading: false } : m));
     } finally {
@@ -1949,7 +1855,8 @@ Follow these rules:
       const stream = await sendStreamWithFallback(
         (model) => createChat(customInstructions, language, historyForApi, activeChat.challengeSystemPrompt, model),
         () => lastUserMessage.content,
-        GEMINI_TEXT_MODEL_FALLBACKS
+        GEMINI_TEXT_MODEL_FALLBACKS,
+        buildOpenRouterContext(historyForApi, activeChat.challengeSystemPrompt)
       );
 
       let fullResponse = '';
@@ -1962,11 +1869,14 @@ Follow these rules:
 
       let finalContent = fullResponse;
       const imagePromptRegex = new RegExp(`${IMAGE_PROMPT_PREFIX}\\s*(.*)`, 'i');
-      const imageMatch = finalContent.match(imagePromptRegex);
+      const imageMatch = finalContent.match(imagePromptRegex) ||
+                         finalContent.match(/Visual Aid:\s*\[([^\]]+)\]/i) ||
+                         finalContent.match(/Visual Aid:\s*([^\n\[]+)/i);
       
       if (imageMatch) {
-        const textPart = finalContent.split(IMAGE_PROMPT_PREFIX)[0].trim();
-        const imagePrompt = imageMatch[1].split('\n')[0].replace(/[`]/g, '').trim();
+        const fullMatchText = imageMatch[0];
+        const textPart = finalContent.split(fullMatchText)[0].trim();
+        const imagePrompt = imageMatch[1].split('\n')[0].replace(/[\[\]`]/g, '').trim();
         const externalLinks = getExternalImageLinks(imagePrompt, lastUserMessage.content);
 
         // Priority 1: Check for high-quality local educational assets based on original user input first, then AI's prompt
@@ -2208,6 +2118,7 @@ Follow these rules:
           onLanguageChange={handleLanguageChange}
           voiceURI={voiceURI}
           onVoiceChange={handleVoiceChange}
+          availableVoices={availableVoices}
           dyslexiaSettings={dyslexiaSettings}
           onDyslexiaSettingsChange={handleDyslexiaSettingsChange}
           customInstructions={customInstructions}

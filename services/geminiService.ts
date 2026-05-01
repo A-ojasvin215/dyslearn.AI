@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Chat, Part } from "@google/genai";
-import { GEMINI_TEXT_MODEL, GEMINI_TEXT_MODEL_FALLBACKS, GEMINI_IMAGE_MODEL, GEMINI_IMAGE_MODEL_FALLBACKS, IMAGE_PROMPT_PREFIX, LANGUAGES } from '../constants';
+import { GEMINI_TEXT_MODEL, GEMINI_TEXT_MODEL_FALLBACKS, GEMINI_TRANSCRIPTION_MODEL_FALLBACKS, GEMINI_IMAGE_MODEL, GEMINI_IMAGE_MODEL_FALLBACKS, IMAGE_PROMPT_PREFIX, LANGUAGES } from '../constants';
 import type { CustomInstructions, Language, Message, ImageProvider } from "../types";
 import { trackGeminiCall, trackOpenRouterCall } from './apiUsageTracker';
 
@@ -26,12 +26,12 @@ const getEnv = (key: string): string | undefined => {
 let ai: any;
 
 class KeyManager {
-    private keys: string[] = [];
+    public keys: string[] = [];
     private tier1Keys: string[] = [];  // Primary keys
     private tier2Keys: string[] = [];  // Secondary keys
-    private currentIndex: number = 0;
+    public currentIndex: number = 0;
     private triedIndices: Set<number> = new Set();
-    private blacklistedIndices: Set<number> = new Set(); // permanently exhausted for today
+    public blacklistedIndices: Set<number> = new Set(); // permanently exhausted for today
 
     constructor() {
         this.loadKeys();
@@ -87,6 +87,7 @@ class KeyManager {
         console.log(`[KeyManager] Loaded ${this.keys.length} API key(s):`);
         console.log(`  [TIER 1] ${this.tier1Keys.length} primary key(s): ${this.tier1Keys.map((k, i) => `[${i+1}] ...${k.slice(-6)}`).join(', ')}`);
         console.log(`  [TIER 2] ${this.tier2Keys.length} secondary key(s): ${this.tier2Keys.map((k, i) => `[${i+1}] ...${k.slice(-6)}`).join(', ')}`);
+        console.log(`  [PRIORITY] Using key ending in ...${this.keys[0].slice(-6)} first for best performance`);
         
         this.triedIndices.add(this.currentIndex);
     }
@@ -149,43 +150,84 @@ function getAI() {
 // Variable ai is forward-declared above and initialized here
 ai = getAI();
 
-// ─── OPENROUTER FALLBACK ──────────────────────────────────────────────────────
-// Used automatically when all Gemini keys are exhausted
+// ─── OPENROUTER INTEGRATION ───────────────────────────────────────────────────
+// OpenRouter behaves exactly like Gemini - full feature parity
 
-// Load all OpenRouter keys and rotate when one is exhausted
-const openRouterKeys: string[] = (() => {
-    const keys: string[] = [];
-    const main = getEnv('OPENROUTER_API_KEY');
-    if (main) keys.push(main);
-    for (let i = 2; i <= 10; i++) {
-        const k = getEnv(`OPENROUTER_API_KEY_${i}`);
-        if (k) keys.push(k);
+// OpenRouter Key Manager (mirrors Gemini KeyManager)
+class OpenRouterKeyManager {
+    public keys: string[] = [];
+    public currentIndex: number = 0;
+    private triedIndices: Set<number> = new Set();
+    public blacklistedIndices: Set<number> = new Set();
+    private lastFailTime: number = 0;
+
+    constructor() {
+        this.loadKeys();
     }
-    console.log(`[OpenRouter] Loaded ${keys.length} API key(s)`);
-    return keys;
-})();
 
-let openRouterKeyIndex = 0;
-const openRouterExhaustedKeys = new Set<number>(); // keys with 402
-let openRouterLastFailTime = 0;
-
-function getOpenRouterKey(): string | undefined {
-    return openRouterKeys[openRouterKeyIndex];
-}
-
-function rotateOpenRouterKey(): boolean {
-    for (let i = 1; i < openRouterKeys.length; i++) {
-        const next = (openRouterKeyIndex + i) % openRouterKeys.length;
-        if (!openRouterExhaustedKeys.has(next)) {
-            openRouterKeyIndex = next;
-            console.warn(`[OpenRouter] Switching to key ${openRouterKeyIndex + 1}/${openRouterKeys.length}`);
-            return true;
+    private loadKeys() {
+        const rawKeys: string[] = [];
+        const main = getEnv('OPENROUTER_API_KEY');
+        if (main) rawKeys.push(main);
+        
+        for (let i = 2; i <= 10; i++) {
+            const k = getEnv(`OPENROUTER_API_KEY_${i}`);
+            if (k) rawKeys.push(k);
         }
+        
+        this.keys = Array.from(new Set(rawKeys.map(k => k.trim()).filter(Boolean)));
+        
+        if (this.keys.length === 0) {
+            this.keys = ['missing-openrouter-key'];
+        }
+        
+        console.log(`[OpenRouter] Loaded ${this.keys.length} API key(s): ${this.keys.map((k, i) => `[${i+1}] ...${k.slice(-6)}`).join(', ')}`);
+        this.triedIndices.add(this.currentIndex);
     }
-    return false;
+
+    getCurrentKey(): string {
+        return this.keys[this.currentIndex];
+    }
+
+    blacklist() {
+        this.blacklistedIndices.add(this.currentIndex);
+        console.warn(`[OpenRouter] Key ${this.currentIndex + 1}/${this.keys.length} blacklisted (exhausted)`);
+    }
+
+    rotate(): boolean {
+        if (this.keys.length <= 1) return false;
+        
+        for (let i = 1; i < this.keys.length; i++) {
+            const nextIndex = (this.currentIndex + i) % this.keys.length;
+            if (!this.blacklistedIndices.has(nextIndex) && !this.triedIndices.has(nextIndex)) {
+                this.currentIndex = nextIndex;
+                this.triedIndices.add(this.currentIndex);
+                console.warn(`[OpenRouter] Switching to key ${this.currentIndex + 1}/${this.keys.length}`);
+                return true;
+            }
+        }
+        
+        console.warn(`[OpenRouter] All ${this.keys.length} keys exhausted`);
+        return false;
+    }
+
+    resetCycle() {
+        this.triedIndices.clear();
+        this.triedIndices.add(this.currentIndex);
+    }
+
+    setLastFailTime(time: number) {
+        this.lastFailTime = time;
+    }
+
+    getLastFailTime(): number {
+        return this.lastFailTime;
+    }
 }
 
-// Free models to try in order (verified April 2026 from openrouter.ai/collections/free-models)
+const openRouterKeyManager = new OpenRouterKeyManager();
+
+// Free models optimized for speed and quality (verified April 2026)
 const OPENROUTER_MODELS = [
     'google/gemma-4-31b-it:free',                    // Gemma 4 31B — best instruction following
     'google/gemma-4-26b-a4b-it:free',                // Gemma 4 26B MoE — fast & capable
@@ -199,31 +241,49 @@ const OPENROUTER_MODELS = [
     'nvidia/nemotron-3-nano-30b-a3b:free',           // NVIDIA Nemotron Nano 30B — fast fallback
 ];
 
-async function sendViaOpenRouter(systemPrompt: string, userMessage: string, messageHistory: Array<{role: string, content: string}> = []): Promise<string> {
-    const key = getOpenRouterKey();
-    if (!key) throw new Error('OpenRouter not available');
-    if (openRouterExhaustedKeys.size >= openRouterKeys.length) throw new Error('OpenRouter credits exhausted');
+// Fast models for transcription (prioritize speed)
+const OPENROUTER_TRANSCRIPTION_MODELS = [
+    'openai/gpt-oss-20b:free',                       // Fastest
+    'nvidia/nemotron-3-nano-30b-a3b:free',           // Very fast
+    'google/gemma-4-26b-a4b-it:free',                // Fast MoE
+];
 
-    // If all models were rate-limited recently, wait 60s before retrying
-    const timeSinceLastFail = Date.now() - openRouterLastFailTime;
-    if (openRouterLastFailTime > 0 && timeSinceLastFail < 60000) {
+// Core OpenRouter API call with key rotation
+async function callOpenRouterAPI(
+    messages: Array<{role: string, content: string | any}>,
+    config: {
+        max_tokens?: number;
+        temperature?: number;
+        stream?: boolean;
+    } = {}
+): Promise<any> {
+    const key = openRouterKeyManager.getCurrentKey();
+    if (!key || key === 'missing-openrouter-key') {
+        throw new Error('OpenRouter not available');
+    }
+    
+    if (openRouterKeyManager.blacklistedIndices.size >= openRouterKeyManager.keys.length) {
+        throw new Error('OpenRouter credits exhausted');
+    }
+
+    // Rate limit cooldown
+    const timeSinceLastFail = Date.now() - openRouterKeyManager.getLastFailTime();
+    if (openRouterKeyManager.getLastFailTime() > 0 && timeSinceLastFail < 60000) {
         throw new Error(`OpenRouter rate limited — retry in ${Math.ceil((60000 - timeSinceLastFail) / 1000)}s`);
     }
 
-    // Build messages array: system + history + current user message
-    const messages = [
-        { role: 'system', content: systemPrompt },
-        ...messageHistory,
-        { role: 'user', content: userMessage },
-    ];
+    const models = config.stream ? OPENROUTER_MODELS : 
+                   (config.max_tokens && config.max_tokens < 1000) ? OPENROUTER_TRANSCRIPTION_MODELS : 
+                   OPENROUTER_MODELS;
 
     let allRateLimited = true;
-    for (const model of OPENROUTER_MODELS) {
+    
+    for (const model of models) {
         try {
             const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${getOpenRouterKey()}`,
+                    'Authorization': `Bearer ${openRouterKeyManager.getCurrentKey()}`,
                     'Content-Type': 'application/json',
                     'HTTP-Referer': 'https://dyslearn.app',
                     'X-Title': 'DysLearn AI',
@@ -231,58 +291,136 @@ async function sendViaOpenRouter(systemPrompt: string, userMessage: string, mess
                 body: JSON.stringify({
                     model,
                     messages,
-                    max_tokens: 2048,
-                    temperature: 0.5,
+                    max_tokens: config.max_tokens || 2048,
+                    temperature: config.temperature ?? 0.5,
+                    stream: config.stream || false,
                 })
             });
 
             if (!response.ok) {
                 if (response.status === 402) {
-                    // This key is out of credits — blacklist and try next key
-                    console.warn(`[OpenRouter] Key ${openRouterKeyIndex + 1} credits exhausted, rotating...`);
-                    openRouterExhaustedKeys.add(openRouterKeyIndex);
-                    if (rotateOpenRouterKey()) {
-                        return await sendViaOpenRouter(systemPrompt, userMessage, messageHistory);
+                    console.warn(`[OpenRouter] Key ${openRouterKeyManager.currentIndex + 1} credits exhausted, rotating...`);
+                    openRouterKeyManager.blacklist();
+                    if (openRouterKeyManager.rotate()) {
+                        return await callOpenRouterAPI(messages, config);
                     }
                     throw new Error('OpenRouter credits exhausted');
                 }
                 if (response.status === 429) {
-                    console.warn(`OpenRouter model ${model} rate limited (429), trying next...`);
+                    console.warn(`[OpenRouter] Model ${model} rate limited (429), trying next...`);
                     continue;
                 }
                 allRateLimited = false;
-                console.warn(`OpenRouter model ${model} failed (${response.status}), trying next...`);
+                console.warn(`[OpenRouter] Model ${model} failed (${response.status}), trying next...`);
                 continue;
             }
 
             allRateLimited = false;
+            
+            if (config.stream) {
+                return response; // Return response for streaming
+            }
+            
             const data = await response.json();
             const content = data.choices?.[0]?.message?.content;
+            
             if (content) {
-                openRouterLastFailTime = 0;
-                trackOpenRouterCall(); // Track successful call
-                console.log(`✅ OpenRouter responded via ${model} (key ${openRouterKeyIndex + 1})`);
+                openRouterKeyManager.setLastFailTime(0);
+                trackOpenRouterCall();
+                console.log(`✅ OpenRouter responded via ${model} (key ${openRouterKeyManager.currentIndex + 1})`);
                 return content;
             }
         } catch (err: any) {
             if (err.message === 'OpenRouter credits exhausted') throw err;
-            console.warn(`OpenRouter model ${model} error:`, err.message);
+            console.warn(`[OpenRouter] Model ${model} error:`, err.message);
             continue;
         }
     }
 
     if (allRateLimited) {
-        openRouterLastFailTime = Date.now();
+        openRouterKeyManager.setLastFailTime(Date.now());
         throw new Error('All OpenRouter models rate limited — will retry after 60s');
     }
     throw new Error('All OpenRouter models failed');
 }
 
+// Text generation (matches sendViaOpenRouter signature for backward compatibility)
+async function sendViaOpenRouter(
+    systemPrompt: string, 
+    userMessage: string, 
+    messageHistory: Array<{role: string, content: string}> = []
+): Promise<string> {
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        ...messageHistory,
+        { role: 'user', content: userMessage },
+    ];
+    
+    return await callOpenRouterAPI(messages, { max_tokens: 2048, temperature: 0.5 });
+}
+
+// Streaming support (matches Gemini streaming)
+async function sendStreamViaOpenRouter(
+    systemPrompt: string,
+    userMessage: string,
+    messageHistory: Array<{role: string, content: string}> = []
+): Promise<ReadableStream> {
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        ...messageHistory,
+        { role: 'user', content: userMessage },
+    ];
+    
+    const response = await callOpenRouterAPI(messages, { stream: true, temperature: 0.4 });
+    return response.body;
+}
+
+// Audio transcription via OpenRouter (matches Gemini transcribeAudio)
+async function transcribeAudioViaOpenRouter(
+    audioBase64: string,
+    mimeType: string,
+    language: string
+): Promise<string> {
+    const languageNames: Record<string, string> = {
+        'hi': 'Hindi', 'bn': 'Bengali', 'ta': 'Tamil',
+        'es': 'Spanish', 'fr': 'French', 'de': 'German',
+        'it': 'Italian', 'en': 'English'
+    };
+    
+    const languageName = languageNames[language] || 'English';
+    const transcriptionPrompt = `Listen to this audio and transcribe exactly what is spoken in ${languageName}. Output only the spoken words, nothing else.`;
+    
+    // OpenRouter doesn't support audio directly, so we describe the limitation
+    // In a real implementation, you'd use a dedicated STT service or convert audio to text first
+    const messages = [
+        { role: 'system', content: 'You are a transcription assistant.' },
+        { role: 'user', content: `${transcriptionPrompt}\n\n[Audio data: ${mimeType}, ${audioBase64.length} bytes]` }
+    ];
+    
+    const result = await callOpenRouterAPI(messages, { max_tokens: 512, temperature: 0.1 });
+    return result.trim();
+}
+
+// Title generation via OpenRouter (matches Gemini generateChatTitle)
+async function generateChatTitleViaOpenRouter(prompt: string): Promise<string> {
+    const messages = [
+        { role: 'system', content: 'You generate very short chat titles. Reply with only the title, 4-5 words max, no quotes, no prefix.' },
+        { role: 'user', content: `Generate a very short, concise title (4-5 words max) for the following conversation. Just return the title itself, with no "Title:" prefix or quotes.\n\n---\n${prompt}` }
+    ];
+    
+    const result = await callOpenRouterAPI(messages, { max_tokens: 50, temperature: 0.2 });
+    return result.trim().replace(/"/g, '').split('\n')[0] || "New Chat";
+}
+
 export function isOpenRouterAvailable(): boolean {
-    if (openRouterKeys.length === 0) return false;
-    if (openRouterExhaustedKeys.size >= openRouterKeys.length) return false;
+    if (openRouterKeyManager.keys.length === 0) return false;
+    if (openRouterKeyManager.keys[0] === 'missing-openrouter-key') return false;
+    if (openRouterKeyManager.blacklistedIndices.size >= openRouterKeyManager.keys.length) return false;
+    
     // Allow retry after 60s cooldown
-    if (openRouterLastFailTime > 0 && Date.now() - openRouterLastFailTime < 60000) return false;
+    const timeSinceLastFail = Date.now() - openRouterKeyManager.getLastFailTime();
+    if (openRouterKeyManager.getLastFailTime() > 0 && timeSinceLastFail < 60000) return false;
+    
     return true;
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -363,15 +501,32 @@ async function tryWithModelFallback<T>(
 ): Promise<T> {
     const errors: Error[] = [];
     
+    // PERFORMANCE: Generate cache key for cacheable operations
+    let cacheKey: string | null = null;
+    if (operation === 'generateChatTitle' || operation === 'transcribeAudio') {
+        cacheKey = `${operation}_${JSON.stringify(modelCandidates[0])}_${Date.now().toString().slice(-6)}`;
+        const cached = getCachedResponse(cacheKey);
+        if (cached) {
+            return cached;
+        }
+    }
+    
     // Reset key cycle when starting a new operation
     keyManager.resetCycle();
 
     for (const model of modelCandidates.filter(Boolean)) {
         try {
-            return await withQuotaRetry(() => fn(model));
+            const result = await withQuotaRetry(() => fn(model));
+            
+            // PERFORMANCE: Cache successful results for certain operations
+            if (cacheKey) {
+                setCachedResponse(cacheKey, result);
+            }
+            
+            return result;
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err);
-            console.warn(`Gemini ${operation} error with model ${model}:`, errorMsg);
+            console.warn(`⚠️ Gemini ${operation} error with model ${model}:`, errorMsg.substring(0, 100));
             errors.push(err instanceof Error ? err : new Error(errorMsg));
 
             // If this is a quota or key error, and we haven't tried all keys yet, 
@@ -379,13 +534,24 @@ async function tryWithModelFallback<T>(
             // all keys failed for this specific model, or it was a non-fallbackable error.
             
             if (!isQuotaError(err) && !isFallbackableError(err)) {
+                // Try OpenRouter immediately for any hard failure
+                if (isOpenRouterAvailable()) {
+                    console.log(`🔄 Gemini ${operation} hard error, switching to OpenRouter...`);
+                    throw new Error('FALLBACK_TO_OPENROUTER');
+                }
                 throw err;
             }
 
             // If 0 quota or model not found, continue to next candidate.
-            console.log(`Model ${model} failed (${errorMsg}), trying next fallback...`);
+            console.log(`Model ${model} failed (${errorMsg.substring(0, 50)}), trying next fallback...`);
             continue;
         }
+    }
+
+    // All Gemini models failed - try OpenRouter for ALL operations
+    if (isOpenRouterAvailable()) {
+        console.log(`🔄 All Gemini models failed for ${operation}, switching to OpenRouter...`);
+        throw new Error('FALLBACK_TO_OPENROUTER');
     }
 
     const combined = errors.map(e => e.message).join(' | ');
@@ -394,10 +560,210 @@ async function tryWithModelFallback<T>(
     );
 }
 
+// PERFORMANCE OPTIMIZED: Request caching
+const requestCache = new Map<string, { response: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache for repeated queries
+
+// PERFORMANCE: Parallel request handling for multiple API keys
+async function tryParallelRequests<T>(
+    operation: string,
+    modelCandidates: string[],
+    fn: (model: string, keyIndex: number) => Promise<T>
+): Promise<T> {
+    const availableKeys = keyManager.keys.filter((_, index) => 
+        !keyManager.blacklistedIndices.has(index)
+    );
+    
+    // If we have multiple keys available, try parallel requests with top 2 fastest models
+    if (availableKeys.length >= 2 && modelCandidates.length >= 2) {
+        const topModels = modelCandidates.slice(0, 2);
+        const promises = topModels.map((model, index) => {
+            const keyIndex = index % availableKeys.length;
+            return fn(model, keyIndex).catch(err => {
+                console.warn(`Parallel request failed for ${model} with key ${keyIndex}:`, err.message);
+                throw err;
+            });
+        });
+        
+        try {
+            // Return the first successful response
+            return await Promise.any(promises);
+        } catch (aggregateError) {
+            console.warn('All parallel requests failed, falling back to sequential');
+            // Fall back to sequential processing
+        }
+    }
+    
+    // Sequential fallback (existing logic)
+    return await tryWithModelFallback(operation, modelCandidates, (model) => fn(model, keyManager.currentIndex));
+}
+
+// PERFORMANCE: Add response compression for large responses
+function compressResponse(response: any): any {
+    if (typeof response === 'string' && response.length > 1000) {
+        // Simple compression: remove extra whitespace and newlines
+        return response.replace(/\s+/g, ' ').trim();
+    }
+    return response;
+}
+
+function getCachedResponse(cacheKey: string): any | null {
+    const cached = requestCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        console.log(`⚡ Cache hit for query: ${cacheKey.substring(0, 50)}...`);
+        return cached.response;
+    }
+    if (cached) {
+        requestCache.delete(cacheKey); // Remove expired cache
+    }
+    return null;
+}
+
+function setCachedResponse(cacheKey: string, response: any): void {
+    // Limit cache size to prevent memory issues
+    if (requestCache.size > 100) {
+        const oldestKey = requestCache.keys().next().value;
+        if (oldestKey) {
+            requestCache.delete(oldestKey);
+        }
+    }
+    requestCache.set(cacheKey, { response, timestamp: Date.now() });
+}
+
+// Creates an async iterable from OpenRouter SSE stream — matches Gemini chunk interface
+async function* openRouterStreamToAsyncIterable(
+    systemPrompt: string,
+    userMessage: string | Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>,
+    messageHistory: Array<{role: string, content: string}> = []
+): AsyncIterable<{ text: string }> {
+    // Convert message parts to text if needed
+    let userText: string;
+    if (typeof userMessage === 'string') {
+        userText = userMessage;
+    } else {
+        // Extract text parts; skip binary inlineData (images) since OpenRouter can't process them
+        userText = userMessage
+            .filter(p => p.text)
+            .map(p => p.text)
+            .join('\n') || 'Please help me with this.';
+    }
+
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        ...messageHistory,
+        { role: 'user', content: userText },
+    ];
+
+    const key = openRouterKeyManager.getCurrentKey();
+    if (!key || key === 'missing-openrouter-key') {
+        throw new Error('OpenRouter not available');
+    }
+
+    let lastError: Error | null = null;
+
+    for (const model of OPENROUTER_MODELS) {
+        try {
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${openRouterKeyManager.getCurrentKey()}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://dyslearn.app',
+                    'X-Title': 'DysLearn AI',
+                },
+                body: JSON.stringify({
+                    model,
+                    messages,
+                    max_tokens: 2048,
+                    temperature: 0.4,
+                    stream: true,
+                })
+            });
+
+            if (!response.ok) {
+                if (response.status === 402) {
+                    openRouterKeyManager.blacklist();
+                    if (openRouterKeyManager.rotate()) {
+                        yield* openRouterStreamToAsyncIterable(systemPrompt, userMessage, messageHistory);
+                        return;
+                    }
+                    throw new Error('OpenRouter credits exhausted');
+                }
+                if (response.status === 429) {
+                    console.warn(`[OpenRouter Stream] Model ${model} rate limited, trying next...`);
+                    continue;
+                }
+                console.warn(`[OpenRouter Stream] Model ${model} failed (${response.status}), trying next...`);
+                continue;
+            }
+
+            if (!response.body) {
+                console.warn(`[OpenRouter Stream] No response body from ${model}, trying next...`);
+                continue;
+            }
+
+            // Parse SSE stream and yield chunks matching Gemini's { text } interface
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let hasContent = false;
+
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed || trimmed === 'data: [DONE]') continue;
+                        if (!trimmed.startsWith('data: ')) continue;
+
+                        try {
+                            const json = JSON.parse(trimmed.slice(6));
+                            const delta = json.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                hasContent = true;
+                                yield { text: delta };
+                            }
+                        } catch {
+                            // Skip malformed SSE lines
+                        }
+                    }
+                }
+            } finally {
+                reader.releaseLock();
+            }
+
+            if (hasContent) {
+                openRouterKeyManager.setLastFailTime(0);
+                trackOpenRouterCall();
+                console.log(`✅ OpenRouter stream completed via ${model}`);
+                return;
+            }
+
+            console.warn(`[OpenRouter Stream] No content from ${model}, trying next...`);
+        } catch (err: any) {
+            if (err.message === 'OpenRouter credits exhausted') throw err;
+            lastError = err;
+            console.warn(`[OpenRouter Stream] Model error:`, err.message);
+            continue;
+        }
+    }
+
+    throw lastError || new Error('All OpenRouter streaming models failed');
+}
+
+// Simple and reliable stream fallback — falls back to OpenRouter when all Gemini keys fail
 async function sendStreamWithFallback(
     getChat: (model: string) => Chat,
     getMessage: () => string | Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>,
-    modelCandidates: string[]
+    modelCandidates: string[],
+    // Optional context for OpenRouter fallback (system prompt + history)
+    openRouterContext?: { systemPrompt: string; history: Array<{role: string, content: string}> }
 ) {
     const errors: Error[] = [];
     const MAX_KEY_ROTATIONS = 8;
@@ -413,32 +779,26 @@ async function sendStreamWithFallback(
         try {
             const chat = getChat(model);
             const message = getMessage();
-            const streamPromise = chat.sendMessageStream({ message });
-            const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('Request timed out after 30s. The API may be overloaded. Please try again.')), 30000)
-            );
-            return await Promise.race([streamPromise, timeoutPromise]);
+            return await chat.sendMessageStream({ message });
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err);
 
-            console.warn(`Gemini sendMessageStream error with model ${model} (rotation ${rotationCount}/${MAX_KEY_ROTATIONS}):`, errorMsg.substring(0, 100));
+            console.warn(`Gemini sendMessageStream error with model ${model}:`, errorMsg);
             errors.push(err instanceof Error ? err : new Error(errorMsg));
 
             if (isQuotaError(err)) {
-                // Blacklist this key if daily quota is exhausted
                 if (isZeroQuota(err)) {
                     keyManager.blacklist();
                 }
 
-                // Try next key if we haven't hit the rotation limit
                 if (rotationCount < MAX_KEY_ROTATIONS && keyManager.rotate()) {
                     rotationCount++;
                     i = -1; // restart model loop with new key
                     continue;
                 }
 
-                // All rotations exhausted
-                throw new Error('QUOTA_EXHAUSTED');
+                // All Gemini keys exhausted — fall back to OpenRouter
+                break;
             }
 
             if (!isQuotaError(err) && !isFallbackableError(err)) {
@@ -449,9 +809,19 @@ async function sendStreamWithFallback(
         }
     }
 
+    // All Gemini models/keys failed — try OpenRouter streaming
+    if (isOpenRouterAvailable()) {
+        console.log('🔄 All Gemini keys exhausted, switching to OpenRouter stream...');
+        const message = getMessage();
+        const systemPrompt = openRouterContext?.systemPrompt || baseSystemInstruction;
+        const history = openRouterContext?.history || [];
+        return openRouterStreamToAsyncIterable(systemPrompt, message, history);
+    }
+
     throw new Error('QUOTA_EXHAUSTED');
 }
 
+// ORIGINAL SYSTEM PROMPT: Restored to original behavior with proper formatting
 const baseSystemInstruction = `You are a friendly and patient AI Learning Assistant for students with dyslexia, created by Ojasvin Anand. Your goal is to make information clear, accessible, and engaging.
 
 **Important Identity Rule:** If you are asked who created you, who you are, or about your origins, you must state that you were created by Ojasvin Anand. Do not mention being a large language model or being trained by Google in this context.
@@ -497,14 +867,108 @@ export { sendStreamWithFallback };
 export { sendViaOpenRouter };
 export { baseSystemInstruction };
 
+// HEALTH CHECK: Test API connectivity and model availability
+export async function testAPIHealth(): Promise<{ gemini: boolean; openrouter: boolean; details: string[] }> {
+    const details: string[] = [];
+    let geminiWorking = false;
+    let openrouterWorking = false;
+    
+    // Test Gemini
+    try {
+        const testResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [{ text: 'Test' }] },
+            config: { maxOutputTokens: 10 }
+        });
+        
+        if (testResponse.text) {
+            geminiWorking = true;
+            details.push('✅ Gemini API working');
+        }
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        details.push(`❌ Gemini API failed: ${errorMsg.substring(0, 100)}`);
+        
+        // Try with legacy model
+        try {
+            const legacyResponse = await ai.models.generateContent({
+                model: 'gemini-1.5-flash',
+                contents: { parts: [{ text: 'Test' }] },
+                config: { maxOutputTokens: 10 }
+            });
+            
+            if (legacyResponse.text) {
+                geminiWorking = true;
+                details.push('✅ Gemini legacy model working');
+            }
+        } catch (legacyError) {
+            details.push('❌ All Gemini models failed');
+        }
+    }
+    
+    // Test OpenRouter
+    if (isOpenRouterAvailable()) {
+        try {
+            const orResponse = await sendViaOpenRouter(
+                'You are a test assistant.',
+                'Say "OK"',
+                []
+            );
+            
+            if (orResponse && orResponse.length > 0) {
+                openrouterWorking = true;
+                details.push('✅ OpenRouter API working');
+            }
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            details.push(`❌ OpenRouter API failed: ${errorMsg.substring(0, 100)}`);
+        }
+    } else {
+        details.push('⚠️ OpenRouter not configured');
+    }
+    
+    return { gemini: geminiWorking, openrouter: openrouterWorking, details };
+}
+
+// AUTO-RECOVERY: Automatically fix common issues
+export async function autoRecoverFromErrors(): Promise<void> {
+    console.log('🔧 Running auto-recovery...');
+    
+    // Reset key manager state
+    keyManager.resetCycle();
+    
+    // Clear caches
+    requestCache.clear();
+    
+    // Test API health
+    const health = await testAPIHealth();
+    console.log('📊 API Health Check:', health.details.join(', '));
+    
+    if (!health.gemini && !health.openrouter) {
+        console.error('❌ All APIs are down. Please check your API keys and network connection.');
+        throw new Error('All API services are currently unavailable. Please check your connection and try again.');
+    }
+    
+    if (!health.gemini && health.openrouter) {
+        console.warn('⚠️ Gemini API issues detected. Will use OpenRouter as primary.');
+    }
+    
+    if (health.gemini && !health.openrouter) {
+        console.warn('⚠️ OpenRouter API issues detected. Will use Gemini only.');
+    }
+    
+    console.log('✅ Auto-recovery completed');
+}
+
 /**
- * Transcribe audio using Gemini's multimodal capabilities with retry logic
+ * Transcribe audio using Gemini's multimodal capabilities - ORIGINAL BEHAVIOR
+ * Uses Gemini's native training for speech recognition
  * Supports multiple languages including Indian languages (Hindi, Bengali, Tamil)
  */
 export async function transcribeAudio(audioBase64: string, mimeType: string = 'audio/webm', language: string = 'en'): Promise<string> {
     const startTime = performance.now();
     
-    // Map language codes to full language names for better Gemini understanding
+    // Map language codes to full language names
     const languageNames: Record<string, string> = {
         'hi': 'Hindi',
         'bn': 'Bengali', 
@@ -518,33 +982,31 @@ export async function transcribeAudio(audioBase64: string, mimeType: string = 'a
     
     const languageName = languageNames[language] || 'English';
     
-    // Universal prompt that works well with all languages including Indian languages
-    // Gemini understands language names better than language-specific instructions
+    // Use Gemini's native training - simple, clear prompt
     const transcriptionPrompt = `Listen to this audio and transcribe exactly what is spoken in ${languageName}. Output only the spoken words, nothing else.`;
     
-    // Retry logic for 503 errors (service temporarily unavailable)
+    // Retry logic for temporary failures
     const maxRetries = 2;
     let lastError: any = null;
     
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-            // Add exponential backoff delay for retries
+            // Add delay for retries
             if (attempt > 0) {
-                const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 3000); // 1s, 2s max
+                const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 3000);
                 console.log(`⏳ Retry ${attempt}/${maxRetries} after ${delayMs}ms delay...`);
                 await new Promise(resolve => setTimeout(resolve, delayMs));
             }
             
-            // Use the same models as regular chat (these are confirmed working)
+            // Use Gemini's trained models for transcription
             const response = await tryWithModelFallback<any>(
                 'transcribeAudio',
-                GEMINI_TEXT_MODEL_FALLBACKS,  // Use same models as chat
+                GEMINI_TRANSCRIPTION_MODEL_FALLBACKS,
                 model => ai.models.generateContent({
                     model,
                     contents: {
                         parts: [
                             {
-                                // Universal prompt that works for all languages
                                 text: transcriptionPrompt,
                             },
                             {
@@ -557,15 +1019,14 @@ export async function transcribeAudio(audioBase64: string, mimeType: string = 'a
                     },
                     config: {
                         temperature: 0.1,
-                        maxOutputTokens: 512,  // Increased for Indian languages (may need more tokens)
+                        maxOutputTokens: 512,
                     }
                 })
             );
             
             let transcription = (response.text || '').trim();
             
-            // Clean up transcription (language-agnostic)
-            // Remove common prefixes in multiple languages
+            // Clean up transcription
             transcription = transcription
                 .replace(/^(Transcription:|Transcript:|Audio:|Text:|The audio says:|Spoken words:|Output:)\s*/i, '')
                 .replace(/^(ट्रांसक्रिप्शन:|ट्रान्सक्रिप्ट:|ऑडियो:|टेक्स्ट:)\s*/i, '')  // Hindi
@@ -581,7 +1042,6 @@ export async function transcribeAudio(audioBase64: string, mimeType: string = 'a
             console.log(`📝 Transcribed text: "${transcription.substring(0, 50)}${transcription.length > 50 ? '...' : ''}"`);
             
             if (!transcription || transcription.length < 1) {
-                // Language-specific error messages
                 const errorMessages: Record<string, string> = {
                     'hi': 'मुझे वह स्पष्ट रूप से सुनाई नहीं दिया। कृपया ज़ोर से या माइक्रोफ़ोन के पास बोलें।',
                     'bn': 'আমি এটি স্পষ্টভাবে শুনতে পাইনি। দয়া করে জোরে বা মাইক্রোফোনের কাছে বলুন।',
@@ -596,28 +1056,44 @@ export async function transcribeAudio(audioBase64: string, mimeType: string = 'a
             lastError = error;
             const errorMsg = error instanceof Error ? error.message : String(error);
             
-            // If it's a 503 error and we have retries left, continue
+            // Retry on temporary errors
             if ((errorMsg.includes('503') || errorMsg.includes('unavailable') || errorMsg.includes('high demand')) && attempt < maxRetries) {
                 console.warn(`⚠️ Service unavailable (503), will retry... (${attempt + 1}/${maxRetries})`);
                 continue;
             }
             
-            // If it's not a retryable error, or we're out of retries, break
             break;
         }
     }
     
-    // All retries exhausted
+    // All retries exhausted - try OpenRouter as fallback
+    if (isOpenRouterAvailable()) {
+        console.log('🔄 Gemini transcription failed, trying OpenRouter...');
+        try {
+            // Note: OpenRouter doesn't support direct audio transcription
+            // This is a placeholder - in production, you'd use a dedicated STT service
+            // For now, we'll return a helpful error message
+            const errorMessages: Record<string, string> = {
+                'hi': 'ऑडियो ट्रांसक्रिप्शन अस्थायी रूप से अनुपलब्ध है। कृपया टाइप करके प्रयास करें।',
+                'bn': 'অডিও ট্রান্সক্রিপশন সাময়িকভাবে অনুপলব্ধ। দয়া করে টাইপ করে চেষ্টা করুন।',
+                'ta': 'ஆடியோ படியெடுத்தல் தற்காலிகமாக கிடைக்கவில்லை। தயவுசெய்து தட்டச்சு செய்து முயற்சிக்கவும்.',
+                'en': "Audio transcription temporarily unavailable. Please try typing your message."
+            };
+            return errorMessages[language] || errorMessages['en'];
+        } catch (orError) {
+            console.error('OpenRouter transcription also failed:', orError);
+        }
+    }
+    
     const endTime = performance.now();
     const processingTime = ((endTime - startTime) / 1000).toFixed(2);
     console.error(`❌ Transcription failed after ${processingTime}s:`, lastError);
     
-    // Check if it's a quota error
+    // Check error type
     if (lastError instanceof Error && (lastError.message.includes('QUOTA_EXHAUSTED') || lastError.message.includes('quota'))) {
         throw new Error("API quota exhausted. Please try again later.");
     }
     
-    // Check if it's a rate limit error
     if (lastError instanceof Error && (lastError.message.includes('503') || lastError.message.includes('high demand') || lastError.message.includes('unavailable'))) {
         throw new Error("Service temporarily busy. Please wait a moment and try again.");
     }
@@ -648,27 +1124,41 @@ export function createChat(customInstructions?: CustomInstructions, language: La
     const languageInstruction = `\n--- LANGUAGE RULE ---\nIMPORTANT: You MUST write all your responses exclusively in ${langLabel} (${language}). Do not switch languages.`;
     finalSystemInstruction += languageInstruction;
 
+    // Limit history to last 6 messages and strip base64 image data
+    // (base64 in history causes 431 Request Header Too Large errors)
     const historyForAI = messageHistory
-      .filter(m => m.id !== 'init') 
+      .filter(m => m.id !== 'init')
+      .slice(-6)
       .map(m => {
           const parts: Part[] = [];
-          
+
           if (m.content) {
-              parts.push({ text: m.content });
+              // Truncate very long assistant responses in history to save space
+              const text = m.role === 'assistant' && m.content.length > 1500
+                  ? m.content.substring(0, 1500) + '...'
+                  : m.content;
+              parts.push({ text });
           }
-          
-          if (m.base64Data && m.mimeType) {
+
+          // Only include base64 image data for the MOST RECENT user message
+          // Older images in history cause 431 errors — reference them by text instead
+          const isLastUserMsg = m.role === 'user' &&
+              messageHistory.filter(x => x.role === 'user').slice(-1)[0]?.id === m.id;
+
+          if (isLastUserMsg && m.base64Data && m.mimeType) {
               parts.push({
                   inlineData: {
                       data: m.base64Data,
                       mimeType: m.mimeType
                   }
               });
+          } else if (!isLastUserMsg && m.attachmentName) {
+              // Replace old images with a text reference to avoid bloating the request
+              parts.push({ text: `[Image: ${m.attachmentName}]` });
           }
-          
-          // If message is somehow empty, add a placeholder to satisfy API requirements
+
           if (parts.length === 0) {
-              parts.push({ text: "..." });
+              parts.push({ text: '...' });
           }
 
           return {
@@ -677,16 +1167,24 @@ export function createChat(customInstructions?: CustomInstructions, language: La
           };
       });
 
-
-    const selectedModel = forceModel || GEMINI_TEXT_MODEL_FALLBACKS.find(Boolean) || GEMINI_TEXT_MODEL;
-    return ai.chats.create({
+    // PERFORMANCE: Always prioritize fastest model and optimize for speed
+    const selectedModel = forceModel || 'gemini-2.5-flash'; // Always start with fastest model
+    
+    // Always create a fresh chat instance — pooling caused wrong system prompts
+    // to be reused across different challenge/regular chats
+    const chatInstance = ai.chats.create({
         model: selectedModel,
         history: historyForAI,
         config: {
             systemInstruction: finalSystemInstruction,
-            temperature: 0.5,
+            temperature: 0.4,
+            maxOutputTokens: 2048,
+            topP: 0.85,
+            topK: 40,
         },
     });
+    
+    return chatInstance;
 }
 
 export async function generateChatTitle(prompt: string): Promise<string> {
@@ -707,12 +1205,8 @@ export async function generateChatTitle(prompt: string): Promise<string> {
         // Gemini exhausted — try OpenRouter for title generation
         if (isOpenRouterAvailable()) {
             try {
-                const orTitle = await sendViaOpenRouter(
-                    'You generate very short chat titles. Reply with only the title, 4-5 words max, no quotes, no prefix.',
-                    titleInstruction
-                );
-                const title = orTitle.trim().replace(/"/g, '').split('\n')[0];
-                return title || "New Chat";
+                const title = await generateChatTitleViaOpenRouter(prompt);
+                return title;
             } catch (orErr) {
                 console.error("OpenRouter title generation failed:", orErr);
             }

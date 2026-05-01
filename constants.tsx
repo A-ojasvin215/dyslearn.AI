@@ -4,16 +4,25 @@ import type { Language, Challenge, Achievement, UserData, SkillStats } from './t
 
 // Prefer a model that typically has usable free-tier quotas.
 // You can override via Vite env var: VITE_GEMINI_TEXT_MODEL.
+// PERFORMANCE OPTIMIZED: Prefer fastest models first for better response times
 export const GEMINI_TEXT_MODEL =
   (import.meta as any).env?.VITE_GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
 export const GEMINI_TEXT_MODEL_FALLBACKS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-001',
-  'gemini-2.0-flash-lite',
-  'gemini-2.0-flash-lite-001',
-  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',        // Primary fast model
+  'gemini-2.5-flash-lite',   // Fast lite version
+  'gemini-2.5-pro',          // More capable model
+  'gemini-1.5-flash',        // Legacy fast model (stable)
+  'gemini-1.5-pro',          // Legacy pro model (stable)
+  'gemini-1.0-pro',          // Oldest stable model
+];
+
+// TRANSCRIPTION OPTIMIZED: Ultra-fast models for audio processing
+export const GEMINI_TRANSCRIPTION_MODEL_FALLBACKS = [
+  'gemini-2.5-flash',        // Best for transcription speed
+  'gemini-1.5-flash',        // Stable legacy fast model
+  'gemini-2.5-flash-lite',   // Lightweight for audio processing
+  'gemini-1.5-pro',          // High accuracy fallback
+  'gemini-1.0-pro',          // Most stable fallback
 ];
 
 // You can override via Vite env var: VITE_GEMINI_IMAGE_MODEL.
