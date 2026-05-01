@@ -9,7 +9,7 @@ DysLearn AI is a comprehensive learning assistant that helps students with dysle
 - **Visual Learning Aids** — AI-generated images and diagrams
 - **Dyslexia-Friendly UI** — 13 custom themes with optimized typography
 - **Multi-Language Support** — Hindi, Bengali, Tamil, Spanish, French, German, Italian, English
-- **Offline Knowledge Base** — Indian curriculum content (Classes 1-12)
+- **Offline Knowledge Base** — Indian curriculum content (Classes Pre KG-6)
 - **Interactive Games** — Tetris, Flappy Bird, Dino Game for engagement
 - **Drawing & Camera Input** — Multi-modal learning support
 
