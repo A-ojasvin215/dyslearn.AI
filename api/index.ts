@@ -87,6 +87,20 @@ const progressByUserId = new Map<string, ProgressEntry[]>();
 // --- PERSISTENCE LAYER ---
 const DB_PATH = path.resolve(__dirname, '../data/db.json');
 
+// Stub functions for database operations (not using Databricks in this version)
+function isConnected(): boolean {
+  return false; // Always use in-memory storage
+}
+
+async function runExec(_query: string, _params: any[]): Promise<void> {
+  // Stub - not implemented
+  return Promise.resolve();
+}
+
+function saveLocalData() {
+  saveData(); // Use the existing saveData function
+}
+
 function saveData() {
   try {
     const dir = path.dirname(DB_PATH);

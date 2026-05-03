@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 
-export const FlappyBird: React.FC<{ onToggleExpand?: () => void }> = ({ onToggleExpand }) => {
+export const FlappyBird: React.FC<{ onGameOver?: (score: number) => void; onToggleExpand?: () => void }> = ({ onGameOver, onToggleExpand }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -183,6 +183,9 @@ export const FlappyBird: React.FC<{ onToggleExpand?: () => void }> = ({ onToggle
             body: JSON.stringify({ flappy_highscore: gameState.current.score })
           }).catch(e => console.error(e));
         }
+      }
+      if (onGameOver) {
+        onGameOver(gameState.current.score);
       }
     };
 

@@ -25,7 +25,7 @@ const COLORS = {
   'Z': '#f00000',
 };
 
-export const Tetris: React.FC<{ onToggleExpand?: () => void }> = ({ onToggleExpand }) => {
+export const Tetris: React.FC<{ onGameOver?: (score: number) => void; onToggleExpand?: () => void }> = ({ onGameOver, onToggleExpand }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -194,6 +194,9 @@ export const Tetris: React.FC<{ onToggleExpand?: () => void }> = ({ onToggleExpa
             body: JSON.stringify({ tetris_highscore: state.score })
           }).catch(e => console.error(e));
         }
+      }
+      if (onGameOver) {
+        onGameOver(state.score);
       }
     }
   };

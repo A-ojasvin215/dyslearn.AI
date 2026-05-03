@@ -11,7 +11,7 @@ export interface Message {
   mimeType?: string;   // Mime type for history context
   isLoading?: boolean;
   attachmentName?: string; // For displaying in the user's message bubble
-  attachmentType?: 'image' | 'text'; // To distinguish between image and text/pdf
+  attachmentType?: 'image' | 'text' | 'audio'; // To distinguish between image, text/pdf, and audio
 }
 
 export interface ChatSession {

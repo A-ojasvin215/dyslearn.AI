@@ -257,9 +257,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <div className="mt-4">
                             {!isExpanded && (
                                 <React.Suspense fallback={<div className="flex items-center justify-center p-8 bg-[var(--bg-primary)] rounded-lg border border-dashed border-[var(--border-color)] text-[var(--text-secondary)] text-xs">Loading game...</div>}>
-                                    {arcadeGame === 'dino' && <DinoGame onGameOver={onGamePlayed} onToggleExpand={() => setIsExpanded(true)} />}
-                                    {arcadeGame === 'flappy' && <FlappyBird onGameOver={onGamePlayed} onToggleExpand={() => setIsExpanded(true)} />}
-                                    {arcadeGame === 'tetris' && <Tetris onGameOver={onGamePlayed} onToggleExpand={() => setIsExpanded(true)} />}
+                                    {arcadeGame === 'dino' && <DinoGame onGameOver={() => onGamePlayed()} onToggleExpand={() => setIsExpanded(true)} />}
+                                    {arcadeGame === 'flappy' && <FlappyBird onGameOver={() => onGamePlayed()} onToggleExpand={() => setIsExpanded(true)} />}
+                                    {arcadeGame === 'tetris' && <Tetris onGameOver={() => onGamePlayed()} onToggleExpand={() => setIsExpanded(true)} />}
                                 </React.Suspense>
                             )}
                         </div>
@@ -312,9 +312,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
                         <div className="w-full max-w-sm">
                             <React.Suspense fallback={<div className="text-[var(--text-secondary)] font-bold">LOADING ARCADIA...</div>}>
-                                {arcadeGame === 'dino' && <DinoGame onGameOver={onGamePlayed} onToggleExpand={() => setIsExpanded(false)} />}
-                                {arcadeGame === 'flappy' && <FlappyBird onGameOver={onGamePlayed} onToggleExpand={() => setIsExpanded(false)} />}
-                                {arcadeGame === 'tetris' && <Tetris onGameOver={onGamePlayed} onToggleExpand={() => setIsExpanded(false)} />}
+                                {arcadeGame === 'dino' && <DinoGame onGameOver={() => onGamePlayed()} onToggleExpand={() => setIsExpanded(false)} />}
+                                {arcadeGame === 'flappy' && <FlappyBird onGameOver={() => onGamePlayed()} onToggleExpand={() => setIsExpanded(false)} />}
+                                {arcadeGame === 'tetris' && <Tetris onGameOver={() => onGamePlayed()} onToggleExpand={() => setIsExpanded(false)} />}
                             </React.Suspense>
                         </div>
                     </div>

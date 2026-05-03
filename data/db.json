@@ -11,8 +11,8 @@
         "custom_instructions_about_user": "",
         "custom_instructions_how_to_respond": "",
         "notifications_enabled": false,
-        "total_points": 25,
-        "skill_vocabulary": 15,
+        "total_points": 35,
+        "skill_vocabulary": 21,
         "skill_grammar": 0,
         "skill_spelling": 0,
         "skill_phonetics": 0,
@@ -28593,6 +28593,198 @@
           }
         ]
       }
+    ],
+    [
+      "chat-1777666611446",
+      {
+        "session_id": "chat-1777666611446",
+        "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+        "title": "New Chat",
+        "challenge_id": null,
+        "created_at": 1777666611446,
+        "messages": [
+          {
+            "message_id": "init",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "assistant",
+            "content": "Hello! I'm your AI Learning Assistant. You can paste text to simplify, ask me to explain a concept, or try a fun challenge from the sidebar. Open settings (top right) to personalize me!",
+            "image_url": null,
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          }
+        ]
+      }
+    ],
+    [
+      "chat-1777666612109",
+      {
+        "session_id": "chat-1777666612109",
+        "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+        "title": "What is a Plane?",
+        "challenge_id": null,
+        "created_at": 1777666612109,
+        "messages": [
+          {
+            "message_id": "init",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "assistant",
+            "content": "Hello! I'm your AI Learning Assistant. You can paste text to simplify, ask me to explain a concept, or try a fun challenge from the sidebar. Open settings (top right) to personalize me!",
+            "image_url": null,
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          },
+          {
+            "message_id": "1777666620557",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "user",
+            "content": "plane",
+            "image_url": null,
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          },
+          {
+            "message_id": "1777666620558",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "assistant",
+            "content": "That's a fantastic question! It sounds like you're curious about planes.\n\nA plane, also known as an airplane, is a machine that flies through the air, carrying people or things from one place to another. It has wings, engines, and a tail, all designed to help it lift off the ground and travel far distances.\n\n**They fly in the sky:** Planes are designed to travel high above the ground, often above the clouds.\n**They have wings:** The wings are shaped to create lift, which helps the plane get off the ground and stay in the air.\n**They use engines:** Engines push the plane forward, making it fast enough to fly and overcome air resistance.\n**They carry people and cargo:** Planes are used to transport passengers and goods all over the world, making travel much faster.\n\nPlanes are amazing inventions that help us explore the world and connect with people far away!\n\n[SOURCES::Google Images::https://www.google.com/search?tbm=isch&q=airplane::🔍||YouTube::https://www.youtube.com/results?search_query=plane::📺||Britannica::https://kids.britannica.com/kids/search/dictionary?query=airplane::📚||Wikimedia::https://commons.wikimedia.org/w/index.php?search=airplane::🖼️]",
+            "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/36/United_Airlines_Boeing_777-200_Meulemans.jpg",
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          }
+        ]
+      }
+    ],
+    [
+      "chat-1777666997283",
+      {
+        "session_id": "chat-1777666997283",
+        "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+        "title": "New Chat",
+        "challenge_id": null,
+        "created_at": 1777666997283,
+        "messages": [
+          {
+            "message_id": "init",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "assistant",
+            "content": "Hello! I'm your AI Learning Assistant. You can paste text to simplify, ask me to explain a concept, or try a fun challenge from the sidebar. Open settings (top right) to personalize me!",
+            "image_url": null,
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          }
+        ]
+      }
+    ],
+    [
+      "chat-1777666997545",
+      {
+        "session_id": "chat-1777666997545",
+        "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+        "title": "New Chat",
+        "challenge_id": null,
+        "created_at": 1777666997545,
+        "messages": [
+          {
+            "message_id": "init",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "assistant",
+            "content": "Hello! I'm your AI Learning Assistant. You can paste text to simplify, ask me to explain a concept, or try a fun challenge from the sidebar. Open settings (top right) to personalize me!",
+            "image_url": null,
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          }
+        ]
+      }
+    ],
+    [
+      "chat-1777667042467",
+      {
+        "session_id": "chat-1777667042467",
+        "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+        "title": "New Chat",
+        "challenge_id": null,
+        "created_at": 1777667042467,
+        "messages": [
+          {
+            "message_id": "init",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "assistant",
+            "content": "Hello! I'm your AI Learning Assistant. You can paste text to simplify, ask me to explain a concept, or try a fun challenge from the sidebar. Open settings (top right) to personalize me!",
+            "image_url": null,
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          }
+        ]
+      }
+    ],
+    [
+      "chat-1777667042692",
+      {
+        "session_id": "chat-1777667042692",
+        "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+        "title": "Explaining 'Cock' as Rooster",
+        "challenge_id": null,
+        "created_at": 1777667042692,
+        "messages": [
+          {
+            "message_id": "init",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "assistant",
+            "content": "Hello! I'm your AI Learning Assistant. You can paste text to simplify, ask me to explain a concept, or try a fun challenge from the sidebar. Open settings (top right) to personalize me!",
+            "image_url": null,
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          },
+          {
+            "message_id": "1777667051763",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "user",
+            "content": "cock",
+            "image_url": null,
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          },
+          {
+            "message_id": "1777667051764",
+            "user_id": "f23c69ef-d323-44d5-aa18-17cf35c8b195",
+            "role": "assistant",
+            "content": "That's an interesting word! It looks like you're asking about a \"cock,\" which can mean a male chicken, also known as a rooster.\n\nA rooster is a grown-up male chicken that is known for its loud \"cock-a-doodle-doo\" crow, especially in the morning. They are often colorful and have a proud walk.\n\n**They are male chickens:** Roosters are the fathers of baby chicks.\n**They crow loudly:** Their \"cock-a-doodle-doo\" is a way to announce their presence and territory.\n**They protect their flock:** Roosters are brave and will defend the hens and chicks from danger.\n**They have fancy feathers:** Many roosters have bright, shiny feathers and a comb (red fleshy part) on their head.\n\nRoosters are fascinating birds that play an important role in a chicken flock!\n\n[SOURCES::Google Images::https://www.google.com/search?tbm=isch&q=rooster::🔍||YouTube::https://www.youtube.com/results?search_query=cock::📺||Britannica::https://kids.britannica.com/kids/search/dictionary?query=rooster::📚||Wikimedia::https://commons.wikimedia.org/w/index.php?search=rooster::🖼️]",
+            "image_url": "https://upload.wikimedia.org/wikipedia/commons/8/84/Male_and_female_chicken_sitting_together.jpg",
+            "base64_data": null,
+            "mime_type": null,
+            "attachment_name": null,
+            "attachment_type": null,
+            "is_loading": false
+          }
+        ]
+      }
     ]
   ],
   "progress": [
@@ -28601,9 +28793,9 @@
       [
         {
           "date_str": "2026-05-01",
-          "points_earned": 95,
+          "points_earned": 105,
           "games_played": 1,
-          "minutes_played": 8
+          "minutes_played": 10
         },
         {
           "date_str": "2026-04-25",
