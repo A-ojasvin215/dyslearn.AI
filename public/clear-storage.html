@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Storage - DysLearn AI</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 400px;
+        }
+        h1 { color: #333; margin-bottom: 1rem; }
+        p { color: #666; margin-bottom: 1.5rem; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover { background: #5568d3; transform: translateY(-2px); }
+        .success { color: #10b981; font-weight: 600; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear Storage</h1>
+        <p>If you're experiencing the "431 Request Header Fields Too Large" error, click below to clear your browser storage.</p>
+        <button onclick="clearStorage()">Clear Storage & Reload</button>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        function clearStorage() {
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                document.getElementById('message').innerHTML = '<p class="success">✅ Storage cleared! Redirecting...</p>';
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1500);
+            } catch (e) {
+                document.getElementById('message').innerHTML = '<p style="color: red;">Error: ' + e.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

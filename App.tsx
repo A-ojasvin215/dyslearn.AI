@@ -2149,7 +2149,50 @@ Follow these rules:
   );
 }
 
+// Utility to check and clean localStorage if it's too large
+function checkAndCleanLocalStorage() {
+  try {
+    // Calculate total localStorage size
+    let totalSize = 0;
+    for (let key in localStorage) {
+      if (localStorage.hasOwnProperty(key)) {
+        totalSize += localStorage[key].length + key.length;
+      }
+    }
+    
+    // If localStorage is > 4MB, clear old chat history
+    const MAX_SIZE = 4 * 1024 * 1024; // 4MB
+    if (totalSize > MAX_SIZE) {
+      console.warn(`localStorage is ${(totalSize / 1024 / 1024).toFixed(2)}MB, cleaning up...`);
+      
+      // Keep only essential data, clear chat history
+      const essentials = ['dyslearn-device-id', 'dyslearn-theme', 'dyslearn-language'];
+      const toKeep: Record<string, string> = {};
+      
+      essentials.forEach(key => {
+        const value = localStorage.getItem(key);
+        if (value) toKeep[key] = value;
+      });
+      
+      localStorage.clear();
+      
+      Object.entries(toKeep).forEach(([key, value]) => {
+        localStorage.setItem(key, value);
+      });
+      
+      console.log('✅ localStorage cleaned, kept essential data');
+    }
+  } catch (e) {
+    console.error('Error checking localStorage:', e);
+  }
+}
+
 export default function App() {
+  // Clean localStorage on app start if needed
+  useEffect(() => {
+    checkAndCleanLocalStorage();
+  }, []);
+  
   return (
     <ErrorBoundary>
       <AppInner />
